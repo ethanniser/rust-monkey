@@ -1,3 +1,3 @@
-fn main() {
-    println!("Hello, world!");
-}
+// use interpreter::*;
+
+fn main() {}
