@@ -30,6 +30,7 @@ pub enum Token {
 }
 
 impl PartialEq for Token {
+    #[allow(clippy::match_like_matches_macro)]
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Token::Illegal, Token::Illegal) => true,

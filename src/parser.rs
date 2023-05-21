@@ -57,19 +57,11 @@ impl Parser {
     }
 
     fn cur_token_is(&self, token: Token) -> bool {
-        match token {
-            Token::Identifier(_) => matches!(self.cur_token, Token::Identifier(_)),
-            Token::Int(_) => matches!(self.cur_token, Token::Int(_)),
-            _ => self.cur_token == token,
-        }
+        self.cur_token == token
     }
 
     fn peek_token_is(&self, token: Token) -> bool {
-        match token {
-            Token::Identifier(_) => matches!(self.peek_token, Token::Identifier(_)),
-            Token::Int(_) => matches!(self.peek_token, Token::Int(_)),
-            _ => self.peek_token == token,
-        }
+        self.peek_token == token
     }
 
     fn expect_peek(&mut self, token: Token) -> Result<(), ParserError> {
@@ -263,6 +255,9 @@ mod tests {
 
         let program = parser.parse_program();
 
+        eprintln!("{:?}", parser.errors);
+        assert!(parser.errors.is_empty(), "parser.errors is not empty");
+
         assert!(
             program.statements.len() == 3,
             "program.statements does not contain 3 statements, got: {}",
@@ -305,6 +300,9 @@ mod tests {
 
         let program = parser.parse_program();
 
+        eprintln!("{:?}", parser.errors);
+        assert!(parser.errors.is_empty(), "parser.errors is not empty");
+
         assert!(
             program.statements.len() == 3,
             "program.statements does not contain 3 statements, got: {}",
@@ -340,6 +338,7 @@ mod tests {
         let program = parser.parse_program();
 
         eprintln!("{:?}", parser.errors);
+        assert!(parser.errors.is_empty(), "parser.errors is not empty");
         assert!(
             program.statements.len() == 1,
             "program.statements does not contain 1 statements, got: {}",
@@ -373,6 +372,7 @@ mod tests {
         let program = parser.parse_program();
 
         eprintln!("{:?}", parser.errors);
+        assert!(parser.errors.is_empty(), "parser.errors is not empty");
         assert!(
             program.statements.len() == 1,
             "program.statements does not contain 1 statements, got: {}",
