@@ -3,6 +3,22 @@ use crate::lexer::Lexer;
 use crate::token::Token;
 use std::collections::HashMap;
 
+impl Token {
+    fn get_precedence(&self) -> Precedence {
+        match self {
+            Token::Eq => Precedence::Equals,
+            Token::NotEq => Precedence::Equals,
+            Token::Lt => Precedence::LessGreater,
+            Token::Gt => Precedence::LessGreater,
+            Token::Plus => Precedence::Sum,
+            Token::Minus => Precedence::Sum,
+            Token::Slash => Precedence::Product,
+            Token::Asterisk => Precedence::Product,
+            _ => Precedence::Lowest,
+        }
+    }
+}
+
 #[derive(PartialEq, PartialOrd, Eq, Ord)]
 enum Precedence {
     Lowest,
@@ -44,6 +60,17 @@ impl Parser {
 
         parser.register_prefix(Token::Identifier("".to_string()), Parser::parse_identifier);
         parser.register_prefix(Token::Int(0), Parser::parse_interger_literal);
+        parser.register_prefix(Token::Bang, Parser::parse_prefix_expression);
+        parser.register_prefix(Token::Minus, Parser::parse_prefix_expression);
+
+        parser.register_infix(Token::Plus, Parser::parse_infix_expression);
+        parser.register_infix(Token::Minus, Parser::parse_infix_expression);
+        parser.register_infix(Token::Asterisk, Parser::parse_infix_expression);
+        parser.register_infix(Token::Slash, Parser::parse_infix_expression);
+        parser.register_infix(Token::Eq, Parser::parse_infix_expression);
+        parser.register_infix(Token::NotEq, Parser::parse_infix_expression);
+        parser.register_infix(Token::Lt, Parser::parse_infix_expression);
+        parser.register_infix(Token::Gt, Parser::parse_infix_expression);
 
         parser.next_token();
         parser.next_token();
@@ -149,9 +176,7 @@ impl Parser {
             self.next_token();
         }
 
-        Ok(Statement::ExpressionStatement(ExpressionStatement {
-            expression,
-        }))
+        Ok(Statement::Expression(ExpressionStatement { expression }))
     }
 
     fn parse_expression(&mut self, precedence: Precedence) -> Result<Expression, ParserError> {
@@ -161,17 +186,16 @@ impl Parser {
             Some(prefix) => {
                 let mut left_expression = prefix(self)?;
 
-                // while !self.peek_token_is(Token::Semicolon) && precedence < self.peek_precedence() {
-                //     let infix = self.infix_parse_fns.get(&self.peek_token);
+                while !self.peek_token_is(Token::Semicolon) && precedence < self.peek_precedence() {
+                    let infix = self.infix_parse_fns.get(&self.peek_token).cloned();
 
-                //     match infix {
-                //         Some(infix) => {
-                //             self.next_token();
-                //             left_expression = infix(self, left_expression)?;
-                //         }
-                //         None => return Ok(left_expression),
-                //     }
-                // }
+                    if let Some(infix) = infix {
+                        self.next_token();
+                        left_expression = infix(self, left_expression)?;
+                    } else {
+                        break;
+                    }
+                }
 
                 Ok(left_expression)
             }
@@ -204,6 +228,67 @@ impl Parser {
                 ),
             }),
         }
+    }
+
+    fn parse_prefix_expression(&mut self) -> Result<Expression, ParserError> {
+        let operator = match self.cur_token.clone() {
+            Token::Bang => PrefixOperator::Bang,
+            Token::Minus => PrefixOperator::Minus,
+            other_token => {
+                return Err(ParserError {
+                    message: format!(
+                        "expected next token to be prefix operator, found: {other_token:?}",
+                    ),
+                })
+            }
+        };
+
+        self.next_token();
+
+        let right = self.parse_expression(Precedence::Prefix)?;
+
+        Ok(Expression::Prefix(PrefixExpression {
+            operator,
+            right: Box::new(right),
+        }))
+    }
+
+    fn peek_precedence(&self) -> Precedence {
+        self.peek_token.get_precedence()
+    }
+
+    fn cur_precedence(&self) -> Precedence {
+        self.cur_token.get_precedence()
+    }
+
+    fn parse_infix_expression(&mut self, left: Expression) -> Result<Expression, ParserError> {
+        let operator = match self.cur_token.clone() {
+            Token::Plus => InfixOperator::Plus,
+            Token::Minus => InfixOperator::Minus,
+            Token::Asterisk => InfixOperator::Asterisk,
+            Token::Slash => InfixOperator::Slash,
+            Token::Eq => InfixOperator::Equal,
+            Token::NotEq => InfixOperator::NotEqual,
+            Token::Lt => InfixOperator::LessThan,
+            Token::Gt => InfixOperator::GreaterThan,
+            other_token => {
+                return Err(ParserError {
+                    message: format!(
+                        "expected next token to be infix operator, found: {other_token:?}",
+                    ),
+                })
+            }
+        };
+
+        let precedence = self.cur_precedence();
+        self.next_token();
+        let right = self.parse_expression(precedence)?;
+
+        Ok(Expression::Infix(InfixExpression {
+            left: Box::new(left),
+            operator,
+            right: Box::new(right),
+        }))
     }
 
     pub fn register_prefix(&mut self, token: Token, function: PrefixParseFn) {
@@ -326,7 +411,7 @@ mod tests {
                 "
         .to_string();
 
-        let expectation = [Statement::ExpressionStatement(ExpressionStatement {
+        let expectation = [Statement::Expression(ExpressionStatement {
             expression: Expression::Identifier(Identifier {
                 value: "foobar".to_string(),
             }),
@@ -362,7 +447,7 @@ mod tests {
                 "
         .to_string();
 
-        let expectation = [Statement::ExpressionStatement(ExpressionStatement {
+        let expectation = [Statement::Expression(ExpressionStatement {
             expression: Expression::Int(IntegerLiteral { value: 5 }),
         })];
 
@@ -387,5 +472,151 @@ mod tests {
         {
             assert_eq!(statement, expectation, "test[{index}] - statement");
         }
+    }
+
+    #[test]
+    fn prefix_expression() {
+        let input = "
+                -15;
+                !foobar;
+                "
+        .to_string();
+
+        let expectation = [
+            Statement::Expression(ExpressionStatement {
+                expression: Expression::Prefix(PrefixExpression {
+                    operator: PrefixOperator::Minus,
+                    right: Box::new(Expression::Int(IntegerLiteral { value: 15 })),
+                }),
+            }),
+            Statement::Expression(ExpressionStatement {
+                expression: Expression::Prefix(PrefixExpression {
+                    operator: PrefixOperator::Bang,
+                    right: Box::new(Expression::Identifier(Identifier {
+                        value: "foobar".to_string(),
+                    })),
+                }),
+            }),
+        ];
+
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+
+        let program = parser.parse_program();
+
+        eprintln!("{:?}", parser.errors);
+        assert!(parser.errors.is_empty(), "parser.errors is not empty");
+        assert!(
+            program.statements.len() == 2,
+            "program.statements does not contain 2 statements, got: {}",
+            program.statements.len()
+        );
+
+        for (index, (statement, expectation)) in program
+            .statements
+            .iter()
+            .zip(expectation.iter())
+            .enumerate()
+        {
+            assert_eq!(statement, expectation, "test[{index}] - statement");
+        }
+    }
+
+    #[test]
+    fn infix_expression() {
+        let input = "
+                a + b / c
+                5 < 4 != 3 > 4
+                "
+        .to_string();
+
+        let expectation = [
+            Statement::Expression(ExpressionStatement {
+                expression: Expression::Infix(InfixExpression {
+                    left: Box::new(Expression::Identifier(Identifier {
+                        value: "a".to_string(),
+                    })),
+                    operator: InfixOperator::Plus,
+                    right: Box::new(Expression::Infix(InfixExpression {
+                        left: Box::new(Expression::Identifier(Identifier {
+                            value: "b".to_string(),
+                        })),
+                        operator: InfixOperator::Slash,
+                        right: Box::new(Expression::Identifier(Identifier {
+                            value: "c".to_string(),
+                        })),
+                    })),
+                }),
+            }),
+            Statement::Expression(ExpressionStatement {
+                expression: Expression::Infix(InfixExpression {
+                    left: Box::new(Expression::Infix(InfixExpression {
+                        left: Box::new(Expression::Int(IntegerLiteral { value: 5 })),
+                        operator: InfixOperator::LessThan,
+                        right: Box::new(Expression::Int(IntegerLiteral { value: 4 })),
+                    })),
+                    operator: InfixOperator::NotEqual,
+                    right: Box::new(Expression::Infix(InfixExpression {
+                        left: Box::new(Expression::Int(IntegerLiteral { value: 3 })),
+                        operator: InfixOperator::GreaterThan,
+                        right: Box::new(Expression::Int(IntegerLiteral { value: 4 })),
+                    })),
+                }),
+            }),
+        ];
+
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+
+        let program = parser.parse_program();
+
+        eprintln!("{:?}", parser.errors);
+        assert!(parser.errors.is_empty(), "parser.errors is not empty");
+        assert!(
+            program.statements.len() == 2,
+            "program.statements does not contain 2 statements, got: {}",
+            program.statements.len()
+        );
+
+        for (index, (statement, expectation)) in program
+            .statements
+            .iter()
+            .zip(expectation.iter())
+            .enumerate()
+        {
+            assert_eq!(statement, expectation, "test[{index}] - statement");
+        }
+
+        // let pairs = [
+        //     ("a + b * c + d / e - f", "(((a + (b * c)) + (d / e)) - f)"),
+        //     (
+        //         "3 + 4 * 5 == 3 * 1 + 4 * 5",
+        //         "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
+        //     ),
+        // ];
+
+        // for (input, expectation) in pairs.iter() {
+        //     let input_lexer = Lexer::new(input.to_string());
+        //     let mut input_parser = Parser::new(input_lexer);
+
+        //     let expectation_lexer = Lexer::new(expectation.to_string());
+        //     let mut expectation_parser = Parser::new(expectation_lexer);
+
+        //     let input_program = input_parser.parse_program();
+        //     let expectation_program = expectation_parser.parse_program();
+
+        //     eprintln!("{:?}", input_parser.errors);
+        //     eprintln!("{:?}", expectation_parser.errors);
+        //     assert!(
+        //         input_parser.errors.is_empty(),
+        //         "input_parser.errors is not empty"
+        //     );
+        //     assert!(
+        //         expectation_parser.errors.is_empty(),
+        //         "expectation_parser.errors is not empty"
+        //     );
+
+        //     assert_eq!(input_program.statements, expectation_program.statements);
+        // }
     }
 }

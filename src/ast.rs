@@ -11,7 +11,7 @@ pub enum Node {
 pub enum Statement {
     Let(LetStatement),
     Return(ReturnStatement),
-    ExpressionStatement(ExpressionStatement),
+    Expression(ExpressionStatement),
 }
 
 #[derive(Debug, PartialEq)]
@@ -19,6 +19,8 @@ pub enum Expression {
     Identifier(Identifier),
     Temp(Temp),
     Int(IntegerLiteral),
+    Prefix(PrefixExpression),
+    Infix(InfixExpression),
 }
 
 #[derive(Debug, PartialEq)]
@@ -48,4 +50,35 @@ pub struct ExpressionStatement {
 #[derive(Debug, PartialEq)]
 pub struct IntegerLiteral {
     pub value: isize,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct PrefixExpression {
+    pub operator: PrefixOperator,
+    pub right: Box<Expression>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum PrefixOperator {
+    Bang,
+    Minus,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum InfixOperator {
+    Plus,
+    Minus,
+    Asterisk,
+    Slash,
+    Equal,
+    NotEqual,
+    LessThan,
+    GreaterThan,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct InfixExpression {
+    pub left: Box<Expression>,
+    pub operator: InfixOperator,
+    pub right: Box<Expression>,
 }
