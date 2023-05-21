@@ -55,7 +55,7 @@ impl Lexer {
             '/' => Token::Slash,
             '<' => Token::Lt,
             '>' => Token::Gt,
-            '\0' => Token::Eof,
+            '\0' => Token::EOF,
             _ => {
                 flag = true;
                 if self.ch.is_alphabetic() {
@@ -155,7 +155,7 @@ impl Iterator for LexerIterator {
 
         let token = self.lexer.next_token();
         match token {
-            Token::Eof => {
+            Token::EOF => {
                 self.has_seen_eof = true; // Remember that we've seen EOF
             }
             _ => {}

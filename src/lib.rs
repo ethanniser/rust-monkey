@@ -106,7 +106,7 @@ mod tests {
             Token::NotEq,
             Token::Int(9),
             Token::Semicolon,
-            Token::Eof,
+            Token::EOF,
         ];
 
         let lexer = Lexer::new(input);
