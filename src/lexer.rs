@@ -1,6 +1,6 @@
 #[derive(Debug)]
 pub struct Lexer {
-    input: String,
+    input: Vec<char>,
     position: usize,
     read_position: usize,
     pub ch: char,
@@ -11,7 +11,7 @@ use crate::token::Token;
 impl Lexer {
     pub fn new(input: String) -> Lexer {
         let mut lexer = Lexer {
-            input,
+            input: input.chars().collect(),
             position: 0,
             read_position: 0,
             ch: '\0',
@@ -79,10 +79,9 @@ impl Lexer {
         if self.read_position >= self.input.len() {
             self.ch = '\0';
         } else {
-            self.ch = self
+            self.ch = *self
                 .input
-                .chars()
-                .nth(self.read_position)
+                .get(self.read_position)
                 .expect("Failed to read char");
         }
         self.position = self.read_position;
@@ -93,9 +92,9 @@ impl Lexer {
         if self.read_position >= self.input.len() {
             '\0'
         } else {
-            self.input
-                .chars()
-                .nth(self.read_position)
+            *self
+                .input
+                .get(self.read_position)
                 .expect("Failed to read char")
         }
     }
@@ -105,7 +104,7 @@ impl Lexer {
         while self.ch.is_alphabetic() {
             self.read_char();
         }
-        self.input[position..self.position].to_string()
+        self.input[position..self.position].iter().collect()
     }
 
     fn read_number(&mut self) -> isize {
@@ -114,6 +113,8 @@ impl Lexer {
             self.read_char();
         }
         self.input[position..self.position]
+            .iter()
+            .collect::<String>()
             .parse()
             .expect("Failed to parse number")
     }
