@@ -51,10 +51,11 @@ mod expression {
     pub enum Expression {
         Identifier(IdentifierLiteral),
         Int(IntegerLiteral),
+        Boolean(BooleanLiteral),
+        Function(FunctionLiteral),
+        If(IfExpression),
         Prefix(PrefixExpression),
         Infix(InfixExpression),
-        Boolean(BooleanLiteral),
-        If(IfExpression),
     }
 
     #[derive(Debug, PartialEq)]
@@ -70,6 +71,12 @@ mod expression {
     #[derive(Debug, PartialEq)]
     pub struct BooleanLiteral {
         pub value: bool,
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub struct FunctionLiteral {
+        pub parameters: Vec<IdentifierLiteral>,
+        pub body: BlockStatement,
     }
 
     #[derive(Debug, PartialEq)]
