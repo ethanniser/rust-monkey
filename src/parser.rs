@@ -58,10 +58,16 @@ impl Parser {
             infix_parse_fns: HashMap::new(),
         };
 
-        parser.register_prefix(Token::Identifier("".to_string()), Parser::parse_identifier);
+        parser.register_prefix(
+            Token::Identifier("".to_string()),
+            Parser::parse_identifier_literal,
+        );
         parser.register_prefix(Token::Int(0), Parser::parse_interger_literal);
         parser.register_prefix(Token::Bang, Parser::parse_prefix_expression);
         parser.register_prefix(Token::Minus, Parser::parse_prefix_expression);
+        parser.register_prefix(Token::True, Parser::parse_boolean_literal);
+        parser.register_prefix(Token::False, Parser::parse_boolean_literal);
+        parser.register_prefix(Token::LParen, Parser::parse_grouped_expression);
 
         parser.register_infix(Token::Plus, Parser::parse_infix_expression);
         parser.register_infix(Token::Minus, Parser::parse_infix_expression);
@@ -103,6 +109,22 @@ impl Parser {
                 ),
             })
         }
+    }
+
+    fn peek_precedence(&self) -> Precedence {
+        self.peek_token.get_precedence()
+    }
+
+    fn cur_precedence(&self) -> Precedence {
+        self.cur_token.get_precedence()
+    }
+
+    pub fn register_prefix(&mut self, token: Token, function: PrefixParseFn) {
+        self.prefix_parse_fns.insert(token, function);
+    }
+
+    pub fn register_infix(&mut self, token: Token, function: InfixParseFn) {
+        self.infix_parse_fns.insert(token, function);
     }
 
     pub fn parse_program(&mut self) -> Program {
@@ -214,28 +236,6 @@ impl Parser {
         }
     }
 
-    fn parse_identifier(&mut self) -> Result<Expression, ParserError> {
-        match self.cur_token.clone() {
-            Token::Identifier(ref identifier) => Ok(Expression::Identifier(IdentifierLiteral {
-                value: identifier.clone(),
-            })),
-            other_token => Err(ParserError {
-                message: format!("expected next token to be identifier, found: {other_token:?}",),
-            }),
-        }
-    }
-
-    fn parse_interger_literal(&mut self) -> Result<Expression, ParserError> {
-        match self.cur_token.clone() {
-            Token::Int(value) => Ok(Expression::Int(IntegerLiteral { value })),
-            other_token => Err(ParserError {
-                message: format!(
-                    "expected next token to be integer literal, found: {other_token:?}",
-                ),
-            }),
-        }
-    }
-
     fn parse_prefix_expression(&mut self) -> Result<Expression, ParserError> {
         let operator = match self.cur_token.clone() {
             Token::Bang => PrefixOperator::Bang,
@@ -257,14 +257,6 @@ impl Parser {
             operator,
             right: Box::new(right),
         }))
-    }
-
-    fn peek_precedence(&self) -> Precedence {
-        self.peek_token.get_precedence()
-    }
-
-    fn cur_precedence(&self) -> Precedence {
-        self.cur_token.get_precedence()
     }
 
     fn parse_infix_expression(&mut self, left: Expression) -> Result<Expression, ParserError> {
@@ -297,12 +289,48 @@ impl Parser {
         }))
     }
 
-    pub fn register_prefix(&mut self, token: Token, function: PrefixParseFn) {
-        self.prefix_parse_fns.insert(token, function);
+    fn parse_identifier_literal(&mut self) -> Result<Expression, ParserError> {
+        match self.cur_token.clone() {
+            Token::Identifier(ref identifier) => Ok(Expression::Identifier(IdentifierLiteral {
+                value: identifier.clone(),
+            })),
+            other_token => Err(ParserError {
+                message: format!("expected next token to be identifier, found: {other_token:?}",),
+            }),
+        }
     }
 
-    pub fn register_infix(&mut self, token: Token, function: InfixParseFn) {
-        self.infix_parse_fns.insert(token, function);
+    fn parse_interger_literal(&mut self) -> Result<Expression, ParserError> {
+        match self.cur_token.clone() {
+            Token::Int(value) => Ok(Expression::Int(IntegerLiteral { value })),
+            other_token => Err(ParserError {
+                message: format!(
+                    "expected next token to be integer literal, found: {other_token:?}",
+                ),
+            }),
+        }
+    }
+
+    fn parse_boolean_literal(&mut self) -> Result<Expression, ParserError> {
+        match self.cur_token.clone() {
+            Token::True => Ok(Expression::Boolean(BooleanLiteral { value: true })),
+            Token::False => Ok(Expression::Boolean(BooleanLiteral { value: false })),
+            other_token => Err(ParserError {
+                message: format!(
+                    "expected next token to be boolean literal, found: {other_token:?}",
+                ),
+            }),
+        }
+    }
+
+    fn parse_grouped_expression(&mut self) -> Result<Expression, ParserError> {
+        self.next_token();
+
+        let expression = self.parse_expression(Precedence::Lowest)?;
+
+        self.expect_peek(Token::RParen)?;
+
+        Ok(expression)
     }
 }
 
@@ -592,37 +620,88 @@ mod tests {
         {
             assert_eq!(statement, expectation, "test[{index}] - statement");
         }
+    }
 
-        // let pairs = [
-        //     ("a + b * c + d / e - f", "(((a + (b * c)) + (d / e)) - f)"),
-        //     (
-        //         "3 + 4 * 5 == 3 * 1 + 4 * 5",
-        //         "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
-        //     ),
-        // ];
+    #[test]
+    fn parentheses() {
+        let pairs = [
+            ("a + b * c + d / e - f", "(((a + (b * c)) + (d / e)) - f)"),
+            (
+                "3 + 4 * 5 == 3 * 1 + 4 * 5",
+                "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
+            ),
+            ("1 + (2 + 3) + 4", "((1 + (2 + 3)) + 4)"),
+            ("(5 + 5) * 2", "((5 + 5) * 2)"),
+            ("2 / (5 + 5)", "(2 / (5 + 5))"),
+            ("-(5 + 5)", "(-(5 + 5))"),
+            ("!(true == true)", "(!(true == true))"),
+        ];
 
-        // for (input, expectation) in pairs.iter() {
-        //     let input_lexer = Lexer::new(input.to_string());
-        //     let mut input_parser = Parser::new(input_lexer);
+        for (input, expectation) in pairs.iter() {
+            let input_lexer = Lexer::new(input.to_string());
+            let mut input_parser = Parser::new(input_lexer);
 
-        //     let expectation_lexer = Lexer::new(expectation.to_string());
-        //     let mut expectation_parser = Parser::new(expectation_lexer);
+            let expectation_lexer = Lexer::new(expectation.to_string());
+            let mut expectation_parser = Parser::new(expectation_lexer);
 
-        //     let input_program = input_parser.parse_program();
-        //     let expectation_program = expectation_parser.parse_program();
+            let input_program = input_parser.parse_program();
+            let expectation_program = expectation_parser.parse_program();
 
-        //     eprintln!("{:?}", input_parser.errors);
-        //     eprintln!("{:?}", expectation_parser.errors);
-        //     assert!(
-        //         input_parser.errors.is_empty(),
-        //         "input_parser.errors is not empty"
-        //     );
-        //     assert!(
-        //         expectation_parser.errors.is_empty(),
-        //         "expectation_parser.errors is not empty"
-        //     );
+            eprintln!("{:?}", input_parser.errors);
+            eprintln!("{:?}", expectation_parser.errors);
+            assert!(
+                input_parser.errors.is_empty(),
+                "input_parser.errors is not empty"
+            );
+            assert!(
+                expectation_parser.errors.is_empty(),
+                "expectation_parser.errors is not empty"
+            );
 
-        //     assert_eq!(input_program.statements, expectation_program.statements);
-        // }
+            assert_eq!(input_program.statements, expectation_program.statements);
+        }
+    }
+
+    #[test]
+    fn boolean_literal() {
+        let input = "
+                true;
+                let x = false;
+                "
+        .to_string();
+
+        let expectation = [
+            Statement::Expression(ExpressionStatement {
+                expression: Expression::Boolean(BooleanLiteral { value: true }),
+            }),
+            Statement::Let(LetStatement {
+                name: IdentifierLiteral {
+                    value: "x".to_string(),
+                },
+                value: Expression::Boolean(BooleanLiteral { value: false }),
+            }),
+        ];
+
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+
+        let program = parser.parse_program();
+
+        eprintln!("{:?}", parser.errors);
+        assert!(parser.errors.is_empty(), "parser.errors is not empty");
+        assert!(
+            program.statements.len() == 2,
+            "program.statements does not contain 2 statements, got: {}",
+            program.statements.len()
+        );
+
+        for (index, (statement, expectation)) in program
+            .statements
+            .iter()
+            .zip(expectation.iter())
+            .enumerate()
+        {
+            assert_eq!(statement, expectation, "test[{index}] - statement");
+        }
     }
 }

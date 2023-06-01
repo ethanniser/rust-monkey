@@ -19,6 +19,7 @@ mod statement {
         Let(LetStatement),
         Return(ReturnStatement),
         Expression(ExpressionStatement),
+        Block(BlockStatement),
     }
     #[derive(Debug, PartialEq)]
     pub struct LetStatement {
@@ -35,9 +36,17 @@ mod statement {
     pub struct ExpressionStatement {
         pub expression: Expression,
     }
+
+    #[derive(Debug, PartialEq)]
+    pub struct BlockStatement {
+        pub statements: Vec<Statement>,
+    }
 }
 
 mod expression {
+
+    use super::*;
+
     #[derive(Debug, PartialEq)]
     pub enum Expression {
         Identifier(IdentifierLiteral),
@@ -45,6 +54,7 @@ mod expression {
         Prefix(PrefixExpression),
         Infix(InfixExpression),
         Boolean(BooleanLiteral),
+        If(IfExpression),
     }
 
     #[derive(Debug, PartialEq)]
@@ -91,5 +101,12 @@ mod expression {
         pub left: Box<Expression>,
         pub operator: InfixOperator,
         pub right: Box<Expression>,
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub struct IfExpression {
+        pub condition: Box<Expression>,
+        pub consequence: BlockStatement,
+        pub alternative: Option<BlockStatement>,
     }
 }
