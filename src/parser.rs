@@ -133,7 +133,7 @@ impl Parser {
         self.expect_peek(Token::Identifier("".to_string()))?;
 
         let name = match self.cur_token.clone() {
-            Token::Identifier(ref name) => Identifier {
+            Token::Identifier(ref name) => IdentifierLiteral {
                 value: name.clone(),
             },
             other_token => {
@@ -147,26 +147,32 @@ impl Parser {
 
         self.expect_peek(Token::Assign)?;
 
-        while !self.cur_token_is(Token::Semicolon) {
+        self.next_token();
+
+        let statement = Statement::Let(LetStatement {
+            name,
+            value: self.parse_expression(Precedence::Lowest)?,
+        });
+
+        if self.peek_token_is(Token::Semicolon) {
             self.next_token();
         }
 
-        Ok(Statement::Let(LetStatement {
-            name,
-            value: Expression::Temp(Temp),
-        }))
+        Ok(statement)
     }
 
     fn parse_return_statement(&mut self) -> Result<Statement, ParserError> {
         self.next_token();
 
-        while !self.cur_token_is(Token::Semicolon) {
+        let statement = Statement::Return(ReturnStatement {
+            return_value: self.parse_expression(Precedence::Lowest)?,
+        });
+
+        if self.peek_token_is(Token::Semicolon) {
             self.next_token();
         }
 
-        Ok(Statement::Return(ReturnStatement {
-            return_value: Expression::Temp(Temp),
-        }))
+        Ok(statement)
     }
 
     fn parse_expression_statement(&mut self) -> Result<Statement, ParserError> {
@@ -210,7 +216,7 @@ impl Parser {
 
     fn parse_identifier(&mut self) -> Result<Expression, ParserError> {
         match self.cur_token.clone() {
-            Token::Identifier(ref identifier) => Ok(Expression::Identifier(Identifier {
+            Token::Identifier(ref identifier) => Ok(Expression::Identifier(IdentifierLiteral {
                 value: identifier.clone(),
             })),
             other_token => Err(ParserError {
@@ -316,22 +322,22 @@ mod tests {
 
         let expectation = [
             Statement::Let(LetStatement {
-                name: Identifier {
+                name: IdentifierLiteral {
                     value: "x".to_string(),
                 },
-                value: Expression::Temp(Temp),
+                value: Expression::Int(IntegerLiteral { value: 5 }),
             }),
             Statement::Let(LetStatement {
-                name: Identifier {
+                name: IdentifierLiteral {
                     value: "y".to_string(),
                 },
-                value: Expression::Temp(Temp),
+                value: Expression::Int(IntegerLiteral { value: 10 }),
             }),
             Statement::Let(LetStatement {
-                name: Identifier {
+                name: IdentifierLiteral {
                     value: "foobar".to_string(),
                 },
-                value: Expression::Temp(Temp),
+                value: Expression::Int(IntegerLiteral { value: 838383 }),
             }),
         ];
 
@@ -370,13 +376,13 @@ mod tests {
 
         let expectation = [
             Statement::Return(ReturnStatement {
-                return_value: Expression::Temp(Temp),
+                return_value: Expression::Int(IntegerLiteral { value: 5 }),
             }),
             Statement::Return(ReturnStatement {
-                return_value: Expression::Temp(Temp),
+                return_value: Expression::Int(IntegerLiteral { value: 10 }),
             }),
             Statement::Return(ReturnStatement {
-                return_value: Expression::Temp(Temp),
+                return_value: Expression::Int(IntegerLiteral { value: 993322 }),
             }),
         ];
 
@@ -412,7 +418,7 @@ mod tests {
         .to_string();
 
         let expectation = [Statement::Expression(ExpressionStatement {
-            expression: Expression::Identifier(Identifier {
+            expression: Expression::Identifier(IdentifierLiteral {
                 value: "foobar".to_string(),
             }),
         })];
@@ -492,7 +498,7 @@ mod tests {
             Statement::Expression(ExpressionStatement {
                 expression: Expression::Prefix(PrefixExpression {
                     operator: PrefixOperator::Bang,
-                    right: Box::new(Expression::Identifier(Identifier {
+                    right: Box::new(Expression::Identifier(IdentifierLiteral {
                         value: "foobar".to_string(),
                     })),
                 }),
@@ -533,16 +539,16 @@ mod tests {
         let expectation = [
             Statement::Expression(ExpressionStatement {
                 expression: Expression::Infix(InfixExpression {
-                    left: Box::new(Expression::Identifier(Identifier {
+                    left: Box::new(Expression::Identifier(IdentifierLiteral {
                         value: "a".to_string(),
                     })),
                     operator: InfixOperator::Plus,
                     right: Box::new(Expression::Infix(InfixExpression {
-                        left: Box::new(Expression::Identifier(Identifier {
+                        left: Box::new(Expression::Identifier(IdentifierLiteral {
                             value: "b".to_string(),
                         })),
                         operator: InfixOperator::Slash,
-                        right: Box::new(Expression::Identifier(Identifier {
+                        right: Box::new(Expression::Identifier(IdentifierLiteral {
                             value: "c".to_string(),
                         })),
                     })),
