@@ -41,7 +41,7 @@ pub fn start<R: BufRead, W: Write>(input: R, mut output: W) -> io::Result<()> {
             }
         }
 
-        writeln!(output, "{:?}", program.statements)?;
+        writeln!(output, "<temp> parser output{:?}", program.statements)?;
 
         let evaluated = match program.eval() {
             Ok(evaluated) => evaluated,
@@ -54,9 +54,6 @@ pub fn start<R: BufRead, W: Write>(input: R, mut output: W) -> io::Result<()> {
             }
         };
 
-        match evaluated {
-            Some(evaluated) => writeln!(output, "{}", evaluated)?,
-            None => writeln!(output, "")?,
-        }
+        writeln!(output, "{}", evaluated)?
     }
 }
