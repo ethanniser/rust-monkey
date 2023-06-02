@@ -5,11 +5,6 @@ pub struct Program {
     pub statements: Vec<Statement>,
 }
 
-pub enum Node {
-    Statement(Statement),
-    Expression(Expression),
-}
-
 mod statement {
 
     use super::*;
@@ -21,6 +16,7 @@ mod statement {
         Expression(ExpressionStatement),
         Block(BlockStatement),
     }
+
     #[derive(Debug, PartialEq)]
     pub struct LetStatement {
         pub name: IdentifierLiteral,
