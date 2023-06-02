@@ -102,8 +102,8 @@ impl Node for Expression {
             Expression::Int(integer) => Ok(Object::Integer(integer.value)),
             Expression::Identifier(identifier) => unimplemented!(),
             Expression::Prefix(prefix_expression) => prefix_expression.eval(),
-            Expression::Infix(infix) => unimplemented!(),
-            Expression::If(if_expression) => unimplemented!(),
+            Expression::Infix(infix_expression) => infix_expression.eval(),
+            Expression::If(if_expression) => if_expression.eval(),
             Expression::Function(function) => unimplemented!(),
             Expression::Call(call) => unimplemented!(),
         }
@@ -125,6 +125,98 @@ impl Node for PrefixExpression {
                     },
                 ))),
             },
+        }
+    }
+}
+
+impl Node for InfixExpression {
+    fn eval(&self) -> Result<Object, EvalError> {
+        let left = self.left.eval()?;
+        let right = self.right.eval()?;
+
+        match (left.clone(), right.clone()) {
+            (Object::Integer(l_val), Object::Integer(r_val)) => match self.operator {
+                InfixOperator::Plus => Ok(Object::Integer(l_val + r_val)),
+                InfixOperator::Minus => Ok(Object::Integer(l_val - r_val)),
+                InfixOperator::Asterisk => Ok(Object::Integer(l_val * r_val)),
+                InfixOperator::Slash => Ok(Object::Integer(l_val / r_val)),
+                InfixOperator::Equal => Ok(Object::Boolean(l_val == r_val)),
+                InfixOperator::NotEqual => Ok(Object::Boolean(l_val != r_val)),
+                InfixOperator::GreaterThan => Ok(Object::Boolean(l_val > r_val)),
+                InfixOperator::LessThan => Ok(Object::Boolean(l_val < r_val)),
+            },
+            (Object::Boolean(l_val), Object::Boolean(r_val)) => match self.operator {
+                InfixOperator::Equal => Ok(Object::Boolean(l_val == r_val)),
+                InfixOperator::NotEqual => Ok(Object::Boolean(l_val != r_val)),
+                _ => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
+                    InfixMismatch {
+                        left,
+                        operator: self.operator,
+                        right,
+                    },
+                ))),
+            },
+            (Object::Boolean(l_val), Object::Integer(r_val)) => match self.operator {
+                InfixOperator::Equal => {
+                    Ok(Object::Boolean(l_val == Object::Integer(r_val).to_bool()))
+                }
+                InfixOperator::NotEqual => {
+                    Ok(Object::Boolean(l_val != Object::Integer(r_val).to_bool()))
+                }
+                _ => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
+                    InfixMismatch {
+                        left,
+                        operator: self.operator,
+                        right,
+                    },
+                ))),
+            },
+            (Object::Integer(l_val), Object::Boolean(r_val)) => match self.operator {
+                InfixOperator::Equal => {
+                    Ok(Object::Boolean(Object::Integer(l_val).to_bool() == r_val))
+                }
+                InfixOperator::NotEqual => {
+                    Ok(Object::Boolean(Object::Integer(l_val).to_bool() != r_val))
+                }
+                _ => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
+                    InfixMismatch {
+                        left,
+                        operator: self.operator,
+                        right,
+                    },
+                ))),
+            },
+            // (Object::String(l_val), Object::String(r_val)) => match self.operator {
+            //     InfixOperator::Plus => Ok(Object::String(format!("{}{}", l_val, r_val))),
+            //     InfixOperator::Equal => Ok(Object::Boolean(l_val == r_val)),
+            //     InfixOperator::NotEqual => Ok(Object::Boolean(l_val != r_val)),
+            //     _ => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
+            //         InfixMismatch {
+            //             left,
+            //             operator: self.operator,
+            //             right,
+            //         },
+            //     ))),
+            // },
+            // (left, right) => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
+            //     InfixMismatch {
+            //         left: left,
+            //         operator: self.operator,
+            //         right: right,
+            //     },
+            // ))),
+        }
+    }
+}
+
+impl Node for IfExpression {
+    fn eval(&self) -> Result<Object, EvalError> {
+        let condition = self.condition.eval()?;
+
+        if condition.to_bool() {
+            self.consequence.eval()
+        } else {
+            self.alternative.eval()
         }
     }
 }
@@ -198,6 +290,59 @@ mod tests {
         let pairs = vec![
             ("-5", Some(Object::Integer(-5))),
             ("--5", Some(Object::Integer(5))),
+        ];
+        test_vs_code(pairs);
+    }
+
+    #[test]
+    fn integer_expressions() {
+        let pairs = vec![
+            ("5 + 5 + 5 + 5 - 10", Some(Object::Integer(10))),
+            ("2 * 2 * 2 * 2 * 2", Some(Object::Integer(32))),
+            ("-50 + 100 + -50", Some(Object::Integer(0))),
+            ("5 * 2 + 10", Some(Object::Integer(20))),
+            ("5 + 2 * 10", Some(Object::Integer(25))),
+            ("20 + 2 * -10", Some(Object::Integer(0))),
+            ("50 / 2 * 2 + 10", Some(Object::Integer(60))),
+            ("2 * (5 + 10)", Some(Object::Integer(30))),
+            ("3 * 3 * 3 + 10", Some(Object::Integer(37))),
+            ("3 * (3 * 3) + 10", Some(Object::Integer(37))),
+            ("(5 + 10 * 2 + 15 / 3) * 2 + -10", Some(Object::Integer(50))),
+        ];
+        test_vs_code(pairs);
+    }
+
+    #[test]
+    fn boolean_expressions() {
+        let pairs = vec![
+            ("true", Some(Object::Boolean(true))),
+            ("false", Some(Object::Boolean(false))),
+            ("1 < 2", Some(Object::Boolean(true))),
+            ("1 > 2", Some(Object::Boolean(false))),
+            ("1 < 1", Some(Object::Boolean(false))),
+            ("1 > 1", Some(Object::Boolean(false))),
+            ("1 == 1", Some(Object::Boolean(true))),
+            ("1 != 1", Some(Object::Boolean(false))),
+            ("1 == 2", Some(Object::Boolean(false))),
+            ("1 != 2", Some(Object::Boolean(true))),
+            ("true == true", Some(Object::Boolean(true))),
+            ("false == false", Some(Object::Boolean(true))),
+            ("true == false", Some(Object::Boolean(false))),
+            ("true != false", Some(Object::Boolean(true))),
+            ("false != true", Some(Object::Boolean(true))),
+            ("(1 < 2) == true", Some(Object::Boolean(true))),
+            ("(1 < 2) == false", Some(Object::Boolean(false))),
+            ("(1 > 2) == true", Some(Object::Boolean(false))),
+            ("(1 > 2) == false", Some(Object::Boolean(true))),
+        ];
+        test_vs_code(pairs);
+    }
+
+    #[test]
+    fn if_expressions() {
+        let pairs = vec![
+            ("if (1 > 2) { 10 } else { 20 }", Some(Object::Integer(20))),
+            ("if (1 < 2) { 10 } else { 20 }", Some(Object::Integer(10))),
         ];
         test_vs_code(pairs);
     }

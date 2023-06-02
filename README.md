@@ -1,7 +1,8 @@
 monkey interpreter in rust following the book https://interpreterbook.com/
 
-my implementation's changes:
+## my implementation's changes:
 
-no nulls!
+### no nulls!
+
 none is only to represent an expression that doesn't return a value
-all other instances of null in the book are errors
+all other instances of null in the book are immediate runtime errors

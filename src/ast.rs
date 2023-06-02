@@ -82,7 +82,7 @@ mod expression {
     pub struct IfExpression {
         pub condition: Box<Expression>,
         pub consequence: BlockStatement,
-        pub alternative: Option<BlockStatement>,
+        pub alternative: BlockStatement,
     }
 
     #[derive(Debug, PartialEq)]
@@ -125,7 +125,7 @@ mod expression {
         }
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Copy, Clone)]
     pub enum InfixOperator {
         Plus,
         Minus,

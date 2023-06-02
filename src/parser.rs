@@ -349,13 +349,9 @@ impl Parser {
 
         let consequence = self.parse_block_statement()?;
 
-        let alternative = if self.peek_token_is(Token::Else) {
-            self.next_token();
-            self.expect_peek(Token::LBrace)?;
-            Some(self.parse_block_statement()?)
-        } else {
-            None
-        };
+        self.expect_peek(Token::Else)?;
+        self.expect_peek(Token::LBrace)?;
+        let alternative = self.parse_block_statement()?;
 
         Ok(Expression::If(IfExpression {
             condition: Box::new(condition),
@@ -757,39 +753,6 @@ mod tests {
     }
 
     #[test]
-    fn if_expression() {
-        let input = "
-            if (x < y) { x }
-            ";
-
-        let expectation = Program {
-            statements: vec![Statement::Expression(ExpressionStatement {
-                expression: Expression::If(IfExpression {
-                    condition: Box::new(Expression::Infix(InfixExpression {
-                        left: Box::new(Expression::Identifier(IdentifierLiteral {
-                            value: "x".to_string(),
-                        })),
-                        operator: InfixOperator::LessThan,
-                        right: Box::new(Expression::Identifier(IdentifierLiteral {
-                            value: "y".to_string(),
-                        })),
-                    })),
-                    consequence: BlockStatement {
-                        statements: vec![Statement::Expression(ExpressionStatement {
-                            expression: Expression::Identifier(IdentifierLiteral {
-                                value: "x".to_string(),
-                            }),
-                        })],
-                    },
-                    alternative: None,
-                }),
-            })],
-        };
-
-        test_vs_expectation(input, expectation);
-    }
-
-    #[test]
     fn if_else_expression() {
         let input = "
             if (x < y) { x } else { y }
@@ -814,13 +777,13 @@ mod tests {
                             }),
                         })],
                     },
-                    alternative: Some(BlockStatement {
+                    alternative: BlockStatement {
                         statements: vec![Statement::Expression(ExpressionStatement {
                             expression: Expression::Identifier(IdentifierLiteral {
                                 value: "y".to_string(),
                             }),
                         })],
-                    }),
+                    },
                 }),
             })],
         };

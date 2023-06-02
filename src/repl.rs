@@ -41,6 +41,8 @@ pub fn start<R: BufRead, W: Write>(input: R, mut output: W) -> io::Result<()> {
             }
         }
 
+        writeln!(output, "{:?}", program.statements)?;
+
         let evaluated = match eval_program(&program) {
             Ok(evaluated) => evaluated,
             Err(e) => {
