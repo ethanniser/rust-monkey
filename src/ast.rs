@@ -51,6 +51,7 @@ mod expression {
         Block(BlockExpression),
         Prefix(PrefixExpression),
         Infix(InfixExpression),
+        None,
     }
 
     #[derive(Debug, PartialEq)]

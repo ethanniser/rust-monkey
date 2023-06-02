@@ -27,6 +27,7 @@ pub enum Token {
     If,
     Else,
     Return,
+    None,
 }
 
 impl PartialEq for Token {
@@ -60,6 +61,7 @@ impl PartialEq for Token {
             (Token::If, Token::If) => true,
             (Token::Else, Token::Else) => true,
             (Token::Return, Token::Return) => true,
+            (Token::None, Token::None) => true,
             _ => false,
         }
     }
@@ -153,6 +155,9 @@ impl Hash for Token {
             Token::Return => {
                 27.hash(state);
             }
+            Token::None => {
+                28.hash(state);
+            }
         }
     }
 }
@@ -167,6 +172,7 @@ impl Token {
             "if" => Token::If,
             "else" => Token::Else,
             "return" => Token::Return,
+            "none" => Token::None,
             _ => Token::Identifier(identifier.to_string()),
         }
     }

@@ -118,6 +118,7 @@ impl Parser {
         parser.register_prefix(Token::If, Parser::parse_if_else_expression);
         parser.register_prefix(Token::Function, Parser::parse_function_literal);
         parser.register_prefix(Token::LBrace, Parser::parse_block_expression);
+        parser.register_prefix(Token::None, Parser::parse_none_literal);
 
         parser.register_infix(Token::Plus, Parser::parse_infix_expression);
         parser.register_infix(Token::Minus, Parser::parse_infix_expression);
@@ -342,20 +343,16 @@ impl Parser {
             Token::Identifier(ref identifier) => Ok(Expression::Identifier(IdentifierLiteral {
                 value: identifier.clone(),
             })),
-            other_token => Err(ParserError::FoundOtherThanExpectedToken {
-                expected: NodeExpectation::One(Node::Token(Token::Identifier(String::new()))),
-                found: Node::Token(other_token),
-            }),
+            _ => unreachable!("parse_identifier_literal called only ever be invoked when current token is Identifier"),
         }
     }
 
     fn parse_interger_literal(&mut self) -> Result<Expression, ParserError> {
         match self.cur_token.clone() {
             Token::Int(value) => Ok(Expression::Int(IntegerLiteral { value })),
-            other_token => Err(ParserError::FoundOtherThanExpectedToken {
-                expected: NodeExpectation::One(Node::Token(Token::Int(0))),
-                found: Node::Token(other_token),
-            }),
+            _ => unreachable!(
+                "parse_interger_literal called only ever be invoked when current token is Int"
+            ),
         }
     }
 
@@ -364,6 +361,15 @@ impl Parser {
             Token::True => Ok(Expression::Boolean(BooleanLiteral { value: true })),
             Token::False => Ok(Expression::Boolean(BooleanLiteral { value: false })),
             _ => unreachable!("parse_boolean_literal called only ever be invoked when current token is True or False"),
+        }
+    }
+
+    fn parse_none_literal(&mut self) -> Result<Expression, ParserError> {
+        match self.cur_token.clone() {
+            Token::None => Ok(Expression::None),
+            _ => unreachable!(
+                "parse_none_literal called only ever be invoked when current token is None"
+            ),
         }
     }
 
@@ -1016,30 +1022,50 @@ mod tests {
         test_vs_code(pairs);
     }
 
-    fn test_vs_error(pairs: Vec<(&str, Vec<ParserError>)>) {
-        for (input, expectation) in pairs {
-            let lexer = Lexer::new(input.to_string());
-            let mut parser = Parser::new(lexer);
-            let program = parser.parse_program();
-
-            if parser.errors.len() < expectation.len() {
-                panic!(
-                    "Expected {} errors, got {}. Program: {:?}",
-                    expectation.len(),
-                    parser.errors.len(),
-                    program.statements
-                );
-            }
-
-            for i in 0..expectation.len() {
-                assert_eq!(parser.errors[i], expectation[i]);
-            }
-        }
+    #[test]
+    fn none_literal() {
+        let input = "
+        none;
+        let x = none;
+        ";
+        let expectation = Program {
+            statements: vec![
+                Statement::Expression(ExpressionStatement::Terminating(Expression::None)),
+                Statement::Let(LetStatement {
+                    name: IdentifierLiteral {
+                        value: "x".to_string(),
+                    },
+                    value: Expression::None,
+                }),
+            ],
+        };
+        test_vs_expectation(input, expectation);
     }
 
     mod errors {
 
         use super::*;
+
+        fn test_vs_error(pairs: Vec<(&str, Vec<ParserError>)>) {
+            for (input, expectation) in pairs {
+                let lexer = Lexer::new(input.to_string());
+                let mut parser = Parser::new(lexer);
+                let program = parser.parse_program();
+
+                if parser.errors.len() < expectation.len() {
+                    panic!(
+                        "Expected {} errors, got {}. Program: {:?}",
+                        expectation.len(),
+                        parser.errors.len(),
+                        program.statements
+                    );
+                }
+
+                for i in 0..expectation.len() {
+                    assert_eq!(parser.errors[i], expectation[i]);
+                }
+            }
+        }
 
         #[test]
         fn let_statement() {

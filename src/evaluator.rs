@@ -114,6 +114,7 @@ impl Node for Expression {
             Expression::Function(_function_literal) => unimplemented!("Function"),
             Expression::Call(_call_expression) => unimplemented!("Call"),
             Expression::Block(block_expression) => block_expression.eval(),
+            Expression::None => Ok(Object::None),
         }
     }
 }
