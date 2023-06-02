@@ -248,7 +248,30 @@ mod tests {
             }
         }
 
-        // println!("{:?}", tokens);
+        for i in 0..tokens.len() {
+            assert!(tokens[i] == expected_output[i]);
+        }
+
+        assert!(tokens.len() == expected_output.len());
+    }
+
+    #[test]
+    fn illegal() {
+        let input = "&5".to_string();
+        let expected_output = [Token::Illegal, Token::Int(5), Token::EOF];
+        let mut lexer = Lexer::new(input);
+
+        let mut tokens = Vec::new();
+
+        loop {
+            let token = lexer.next_token();
+
+            tokens.push(token.clone());
+
+            if token == Token::EOF {
+                break;
+            }
+        }
 
         for i in 0..tokens.len() {
             assert!(tokens[i] == expected_output[i]);

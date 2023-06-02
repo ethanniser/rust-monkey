@@ -4,7 +4,15 @@ use std::fmt::Display;
 pub enum Object {
     Integer(isize),
     Boolean(bool),
-    Null,
+}
+
+impl Object {
+    pub fn to_bool(&self) -> bool {
+        match self {
+            Object::Integer(integer) => *integer != 0,
+            Object::Boolean(boolean) => *boolean,
+        }
+    }
 }
 
 impl Display for Object {
@@ -12,7 +20,6 @@ impl Display for Object {
         match self {
             Object::Integer(integer) => write!(f, "{}", integer),
             Object::Boolean(boolean) => write!(f, "{}", boolean),
-            Object::Null => write!(f, "null"),
         }
     }
 }
