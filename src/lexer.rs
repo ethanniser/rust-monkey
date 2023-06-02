@@ -64,6 +64,7 @@ impl Lexer {
                 } else if self.ch.is_ascii_digit() {
                     Token::Int(self.read_number())
                 } else {
+                    self.read_char();
                     Token::Illegal
                 }
             }
