@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::ast::*;
 use crate::object::Object;
 
@@ -24,6 +26,31 @@ pub enum TypeMismatch {
 pub enum EvalError {
     UnknownIdentifier(String),
     TypeMismatch(TypeMismatch),
+}
+
+impl Display for EvalError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EvalError::UnknownIdentifier(identifier) => {
+                write!(f, "unknown identifier: {}", identifier)
+            }
+            EvalError::TypeMismatch(type_mismatch) => match type_mismatch {
+                TypeMismatch::Prefix(prefix_mismatch) => write!(
+                    f,
+                    "Type Mismatch: Tried to use operator \"{}\" on type \"{}\"",
+                    prefix_mismatch.operator,
+                    prefix_mismatch.right.to_type()
+                ),
+                TypeMismatch::Infix(infix_mismatch) => write!(
+                    f,
+                    "Type Mismatch: Tried to use operator \"{}\" on types \"{}\" and \"{}\"",
+                    infix_mismatch.operator,
+                    infix_mismatch.left.to_type(),
+                    infix_mismatch.right.to_type()
+                ),
+            },
+        }
+    }
 }
 
 pub trait Node {

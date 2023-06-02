@@ -41,6 +41,8 @@ mod statement {
 
 mod expression {
 
+    use std::fmt::Display;
+
     use super::*;
 
     #[derive(Debug, PartialEq)]
@@ -114,6 +116,15 @@ mod expression {
         Minus,
     }
 
+    impl Display for PrefixOperator {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                PrefixOperator::Bang => write!(f, "!"),
+                PrefixOperator::Minus => write!(f, "-"),
+            }
+        }
+    }
+
     #[derive(Debug, PartialEq)]
     pub enum InfixOperator {
         Plus,
@@ -124,5 +135,20 @@ mod expression {
         NotEqual,
         LessThan,
         GreaterThan,
+    }
+
+    impl Display for InfixOperator {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                InfixOperator::Plus => write!(f, "+"),
+                InfixOperator::Minus => write!(f, "-"),
+                InfixOperator::Asterisk => write!(f, "*"),
+                InfixOperator::Slash => write!(f, "/"),
+                InfixOperator::Equal => write!(f, "=="),
+                InfixOperator::NotEqual => write!(f, "!="),
+                InfixOperator::LessThan => write!(f, "<"),
+                InfixOperator::GreaterThan => write!(f, ">"),
+            }
+        }
     }
 }

@@ -13,6 +13,13 @@ impl Object {
             Object::Boolean(boolean) => *boolean,
         }
     }
+
+    pub fn to_type(&self) -> String {
+        match self {
+            Object::Integer(_) => "Integer".to_string(),
+            Object::Boolean(_) => "Boolean".to_string(),
+        }
+    }
 }
 
 impl Display for Object {

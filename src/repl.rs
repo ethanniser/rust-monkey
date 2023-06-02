@@ -34,7 +34,7 @@ pub fn start<R: BufRead, W: Write>(input: R, mut output: W) -> io::Result<()> {
         if !parser.errors.is_empty() {
             writeln!(output, "Woops! We ran into some monkey business here!")?;
             writeln!(output, "{}", MONKEY_FACE)?;
-            writeln!(output, "PARSER ERRORS:")?;
+            writeln!(output, "Parser Error:")?;
 
             for error in parser.errors {
                 writeln!(output, "{}", error.message)?;
@@ -43,11 +43,11 @@ pub fn start<R: BufRead, W: Write>(input: R, mut output: W) -> io::Result<()> {
 
         let evaluated = match eval_program(&program) {
             Ok(evaluated) => evaluated,
-            Err(_e) => {
+            Err(e) => {
                 writeln!(output, "Woops! We ran into some monkey business here!")?;
                 writeln!(output, "{}", MONKEY_FACE)?;
-                writeln!(output, "EVAL ERRORS:")?;
-                writeln!(output, "{}", "there was an error <this should be fixed>")?;
+                writeln!(output, "Evaluation Error:")?;
+                writeln!(output, "{e}")?;
                 continue;
             }
         };
