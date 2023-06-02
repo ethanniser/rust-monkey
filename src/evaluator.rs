@@ -63,7 +63,6 @@ impl Node for Statement {
             Statement::Let(let_statement) => let_statement.eval(),
             Statement::Return(return_statement) => return_statement.eval(),
             Statement::Expression(expression_statement) => expression_statement.eval(),
-            Statement::Block(block_statement) => block_statement.eval(),
         }
     }
 }
@@ -84,12 +83,18 @@ impl Node for ReturnStatement {
 
 impl Node for ExpressionStatement {
     fn eval(&self) -> Result<Object, EvalError> {
-        let value = self.expression.eval()?;
-        Ok(value)
+
+        Ok(match self {
+            ExpressionStatement::NonTerminating(expression) => expression.eval()?,
+            ExpressionStatement::Terminating(expression) => {
+                expression.eval()?;
+                Object::None
+            },
+        })
     }
 }
 
-impl Node for BlockStatement {
+impl Node for BlockExpression {
     fn eval(&self) -> Result<Object, EvalError> {
         eval_statements(&self.statements)
     }
@@ -106,6 +111,7 @@ impl Node for Expression {
             Expression::If(if_expression) => if_expression.eval(),
             Expression::Function(_function_literal) => unimplemented!("Function"),
             Expression::Call(_call_expression) => unimplemented!("Call"),
+            Expression::Block(block_expression) => block_expression.eval(),
         }
     }
 }

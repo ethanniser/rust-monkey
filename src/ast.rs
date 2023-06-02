@@ -14,7 +14,6 @@ mod statement {
         Let(LetStatement),
         Return(ReturnStatement),
         Expression(ExpressionStatement),
-        Block(BlockStatement),
     }
 
     #[derive(Debug, PartialEq)]
@@ -29,13 +28,9 @@ mod statement {
     }
 
     #[derive(Debug, PartialEq)]
-    pub struct ExpressionStatement {
-        pub expression: Expression,
-    }
-
-    #[derive(Debug, PartialEq)]
-    pub struct BlockStatement {
-        pub statements: Vec<Statement>,
+    pub enum ExpressionStatement {
+        Terminating(Expression),
+        NonTerminating(Expression),
     }
 }
 
@@ -53,6 +48,7 @@ mod expression {
         Function(FunctionLiteral),
         If(IfExpression),
         Call(CallExpression),
+        Block(BlockExpression),
         Prefix(PrefixExpression),
         Infix(InfixExpression),
     }
@@ -75,14 +71,14 @@ mod expression {
     #[derive(Debug, PartialEq)]
     pub struct FunctionLiteral {
         pub parameters: Vec<IdentifierLiteral>,
-        pub body: BlockStatement,
+        pub body: BlockExpression,
     }
 
     #[derive(Debug, PartialEq)]
     pub struct IfExpression {
         pub condition: Box<Expression>,
-        pub consequence: BlockStatement,
-        pub alternative: BlockStatement,
+        pub consequence: BlockExpression,
+        pub alternative: BlockExpression,
     }
 
     #[derive(Debug, PartialEq)]
@@ -95,6 +91,11 @@ mod expression {
     pub enum CallableExpression {
         Identifier(IdentifierLiteral),
         Function(FunctionLiteral),
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub struct BlockExpression {
+        pub statements: Vec<Statement>,
     }
 
     #[derive(Debug, PartialEq)]
