@@ -26,7 +26,14 @@ pub enum TypeMismatch {
 pub enum EvalError {
     UnknownIdentifier(String),
     TypeMismatch(TypeMismatch),
-    BlockNoValue,
+    ExpectedExpressionRecievedStatement,
+}
+
+fn confirm_expression(input: Option<Object>) -> Result<Object, EvalError> {
+    match input {
+        Some(input) => Ok(input),
+        None => Err(EvalError::ExpectedExpressionRecievedStatement),
+    }
 }
 
 impl Display for EvalError {
@@ -50,7 +57,9 @@ impl Display for EvalError {
                     infix_mismatch.right.to_type()
                 ),
             },
-            EvalError::BlockNoValue => write!(f, "Block did not return a value"),
+            EvalError::ExpectedExpressionRecievedStatement => {
+                write!(f, "Expected expression, recieved statement")
+            }
         }
     }
 }
@@ -72,22 +81,22 @@ impl Node for Statement {
 
 impl Node for LetStatement {
     fn eval(&self) -> Result<Option<Object>, EvalError> {
-        let value = self.value.eval()?;
-        Ok(value)
+        let _value = self.value.eval()?;
+        Ok(None)
     }
 }
 
 impl Node for ReturnStatement {
     fn eval(&self) -> Result<Option<Object>, EvalError> {
-        let value = self.return_value.eval()?;
-        Ok(value)
+        let _value = self.return_value.eval()?;
+        Ok(None)
     }
 }
 
 impl Node for ExpressionStatement {
     fn eval(&self) -> Result<Option<Object>, EvalError> {
-        let value = self.expression.eval()?;
-        Ok(value)
+        let _value = self.expression.eval()?;
+        Ok(None)
     }
 }
 
@@ -99,15 +108,17 @@ impl Node for BlockStatement {
             result = Some(Node::eval(statement)?);
         }
 
-        result.ok_or(EvalError::BlockNoValue)
+        result.ok_or(EvalError::ExpectedExpressionRecievedStatement)
     }
 }
 
 impl Node for Expression {
     fn eval(&self) -> Result<Option<Object>, EvalError> {
         match self {
-            Expression::Boolean(boolean_literal) => Ok(Object::Boolean(boolean_literal.value)),
-            Expression::Int(integer_literal) => Ok(Object::Integer(integer_literal.value)),
+            Expression::Boolean(boolean_literal) => {
+                Ok(Some(Object::Boolean(boolean_literal.value)))
+            }
+            Expression::Int(integer_literal) => Ok(Some(Object::Integer(integer_literal.value))),
             Expression::Identifier(identifier_literal) => unimplemented!("Identifier"),
             Expression::Prefix(prefix_expression) => prefix_expression.eval(),
             Expression::Infix(infix_expression) => infix_expression.eval(),
@@ -120,12 +131,12 @@ impl Node for Expression {
 
 impl Node for PrefixExpression {
     fn eval(&self) -> Result<Option<Object>, EvalError> {
-        let right = self.right.eval()?;
+        let right = confirm_expression(self.right.eval()?)?;
 
         match self.operator {
-            PrefixOperator::Bang => Ok(Object::Boolean(!right.to_bool())),
+            PrefixOperator::Bang => Ok(Some(Object::Boolean(!right.to_bool()))),
             PrefixOperator::Minus => match right {
-                Object::Integer(integer) => Ok(Object::Integer(-integer)),
+                Object::Integer(integer) => Ok(Some(Object::Integer(-integer))),
                 _ => Err(EvalError::TypeMismatch(TypeMismatch::Prefix(
                     PrefixMismatch {
                         operator: PrefixOperator::Minus,
@@ -139,23 +150,23 @@ impl Node for PrefixExpression {
 
 impl Node for InfixExpression {
     fn eval(&self) -> Result<Option<Object>, EvalError> {
-        let left = self.left.eval()?;
-        let right = self.right.eval()?;
+        let left = confirm_expression(self.left.eval()?)?;
+        let right = confirm_expression(self.right.eval()?)?;
 
         match (left.clone(), right.clone()) {
             (Object::Integer(l_val), Object::Integer(r_val)) => match self.operator {
-                InfixOperator::Plus => Ok(Object::Integer(l_val + r_val)),
-                InfixOperator::Minus => Ok(Object::Integer(l_val - r_val)),
-                InfixOperator::Asterisk => Ok(Object::Integer(l_val * r_val)),
-                InfixOperator::Slash => Ok(Object::Integer(l_val / r_val)),
-                InfixOperator::Equal => Ok(Object::Boolean(l_val == r_val)),
-                InfixOperator::NotEqual => Ok(Object::Boolean(l_val != r_val)),
-                InfixOperator::GreaterThan => Ok(Object::Boolean(l_val > r_val)),
-                InfixOperator::LessThan => Ok(Object::Boolean(l_val < r_val)),
+                InfixOperator::Plus => Ok(Some(Object::Integer(l_val + r_val))),
+                InfixOperator::Minus => Ok(Some(Object::Integer(l_val - r_val))),
+                InfixOperator::Asterisk => Ok(Some(Object::Integer(l_val * r_val))),
+                InfixOperator::Slash => Ok(Some(Object::Integer(l_val / r_val))),
+                InfixOperator::Equal => Ok(Some(Object::Boolean(l_val == r_val))),
+                InfixOperator::NotEqual => Ok(Some(Object::Boolean(l_val != r_val))),
+                InfixOperator::GreaterThan => Ok(Some(Object::Boolean(l_val > r_val))),
+                InfixOperator::LessThan => Ok(Some(Object::Boolean(l_val < r_val))),
             },
             (Object::Boolean(l_val), Object::Boolean(r_val)) => match self.operator {
-                InfixOperator::Equal => Ok(Object::Boolean(l_val == r_val)),
-                InfixOperator::NotEqual => Ok(Object::Boolean(l_val != r_val)),
+                InfixOperator::Equal => Ok(Some(Object::Boolean(l_val == r_val))),
+                InfixOperator::NotEqual => Ok(Some(Object::Boolean(l_val != r_val))),
                 _ => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
                     InfixMismatch {
                         left,
@@ -165,12 +176,12 @@ impl Node for InfixExpression {
                 ))),
             },
             (Object::Boolean(l_val), Object::Integer(r_val)) => match self.operator {
-                InfixOperator::Equal => {
-                    Ok(Object::Boolean(l_val == Object::Integer(r_val).to_bool()))
-                }
-                InfixOperator::NotEqual => {
-                    Ok(Object::Boolean(l_val != Object::Integer(r_val).to_bool()))
-                }
+                InfixOperator::Equal => Ok(Some(Object::Boolean(
+                    l_val == Object::Integer(r_val).to_bool(),
+                ))),
+                InfixOperator::NotEqual => Ok(Some(Object::Boolean(
+                    l_val != Object::Integer(r_val).to_bool(),
+                ))),
                 _ => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
                     InfixMismatch {
                         left,
@@ -180,12 +191,12 @@ impl Node for InfixExpression {
                 ))),
             },
             (Object::Integer(l_val), Object::Boolean(r_val)) => match self.operator {
-                InfixOperator::Equal => {
-                    Ok(Object::Boolean(Object::Integer(l_val).to_bool() == r_val))
-                }
-                InfixOperator::NotEqual => {
-                    Ok(Object::Boolean(Object::Integer(l_val).to_bool() != r_val))
-                }
+                InfixOperator::Equal => Ok(Some(Object::Boolean(
+                    Object::Integer(l_val).to_bool() == r_val,
+                ))),
+                InfixOperator::NotEqual => Ok(Some(Object::Boolean(
+                    Object::Integer(l_val).to_bool() != r_val,
+                ))),
                 _ => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
                     InfixMismatch {
                         left,
@@ -195,9 +206,9 @@ impl Node for InfixExpression {
                 ))),
             },
             // (Object::String(l_val), Object::String(r_val)) => match self.operator {
-            //     InfixOperator::Plus => Ok(Object::String(format!("{}{}", l_val, r_val))),
-            //     InfixOperator::Equal => Ok(Object::Boolean(l_val == r_val)),
-            //     InfixOperator::NotEqual => Ok(Object::Boolean(l_val != r_val)),
+            //     InfixOperator::Plus => Ok(Some(Object::String(format!("{}{}", l_val, r_val)))),
+            //     InfixOperator::Equal => Ok(Some(Object::Boolean(l_val == r_val))),
+            //     InfixOperator::NotEqual => Ok(Some(Object::Boolean(l_val != r_val))),
             //     _ => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
             //         InfixMismatch {
             //             left,
@@ -219,7 +230,7 @@ impl Node for InfixExpression {
 
 impl Node for IfExpression {
     fn eval(&self) -> Result<Option<Object>, EvalError> {
-        let condition = self.condition.eval()?;
+        let condition = confirm_expression(self.condition.eval()?)?;
 
         if condition.to_bool() {
             self.consequence.eval()

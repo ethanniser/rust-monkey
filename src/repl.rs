@@ -1,5 +1,5 @@
 use crate::parser::Parser;
-use crate::{evaluator::eval_program, lexer::Lexer};
+use crate::{evaluator::Node, lexer::Lexer};
 use std::io::{self, BufRead, Write};
 
 const PROMPT: &str = ">> ";
@@ -43,7 +43,7 @@ pub fn start<R: BufRead, W: Write>(input: R, mut output: W) -> io::Result<()> {
 
         writeln!(output, "{:?}", program.statements)?;
 
-        let evaluated = match eval_program(&program) {
+        let evaluated = match program.eval() {
             Ok(evaluated) => evaluated,
             Err(e) => {
                 writeln!(output, "Woops! We ran into some monkey business here!")?;
