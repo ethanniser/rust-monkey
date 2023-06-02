@@ -54,6 +54,7 @@ mod expression {
         Boolean(BooleanLiteral),
         Function(FunctionLiteral),
         If(IfExpression),
+        Call(CallExpression),
         Prefix(PrefixExpression),
         Infix(InfixExpression),
     }
@@ -80,8 +81,34 @@ mod expression {
     }
 
     #[derive(Debug, PartialEq)]
+    pub struct IfExpression {
+        pub condition: Box<Expression>,
+        pub consequence: BlockStatement,
+        pub alternative: Option<BlockStatement>,
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub struct CallExpression {
+        pub function: CallableExpression,
+        pub arguments: Vec<Expression>,
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub enum CallableExpression {
+        Identifier(IdentifierLiteral),
+        Function(FunctionLiteral),
+    }
+
+    #[derive(Debug, PartialEq)]
     pub struct PrefixExpression {
         pub operator: PrefixOperator,
+        pub right: Box<Expression>,
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub struct InfixExpression {
+        pub left: Box<Expression>,
+        pub operator: InfixOperator,
         pub right: Box<Expression>,
     }
 
@@ -101,19 +128,5 @@ mod expression {
         NotEqual,
         LessThan,
         GreaterThan,
-    }
-
-    #[derive(Debug, PartialEq)]
-    pub struct InfixExpression {
-        pub left: Box<Expression>,
-        pub operator: InfixOperator,
-        pub right: Box<Expression>,
-    }
-
-    #[derive(Debug, PartialEq)]
-    pub struct IfExpression {
-        pub condition: Box<Expression>,
-        pub consequence: BlockStatement,
-        pub alternative: Option<BlockStatement>,
     }
 }

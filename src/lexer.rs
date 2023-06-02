@@ -132,7 +132,7 @@ mod tests {
     use crate::token::Token;
 
     #[test]
-    fn basic_lexer() {
+    fn lexer() {
         let input = "
                     let five = 5;
                     let ten = 10;

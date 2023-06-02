@@ -14,6 +14,7 @@ impl Token {
             Token::Minus => Precedence::Sum,
             Token::Slash => Precedence::Product,
             Token::Asterisk => Precedence::Product,
+            Token::LParen => Precedence::Call,
             _ => Precedence::Lowest,
         }
     }
@@ -22,12 +23,12 @@ impl Token {
 #[derive(PartialEq, PartialOrd, Eq, Ord)]
 enum Precedence {
     Lowest,
-    Equals,      // ==
-    LessGreater, // > or <
-    Sum,         // +
-    Product,     // *
-    Prefix,      // -X or !X
-    Call,        // myFunction(X)
+    Equals,
+    LessGreater,
+    Sum,
+    Product,
+    Prefix,
+    Call,
 }
 
 type PrefixParseFn = fn(&mut Parser) -> Result<Expression, ParserError>;
@@ -79,6 +80,7 @@ impl Parser {
         parser.register_infix(Token::NotEq, Parser::parse_infix_expression);
         parser.register_infix(Token::Lt, Parser::parse_infix_expression);
         parser.register_infix(Token::Gt, Parser::parse_infix_expression);
+        parser.register_infix(Token::LParen, Parser::parse_call_expression);
 
         parser.next_token();
         parser.next_token();
@@ -433,13 +435,65 @@ impl Parser {
 
         Ok(identifiers)
     }
+
+    fn parse_call_expression(&mut self, function: Expression) -> Result<Expression, ParserError> {
+        let function = match function {
+            Expression::Identifier(identifier_literal) => {
+                CallableExpression::Identifier(identifier_literal)
+            }
+            Expression::Function(function_literal) => {
+                CallableExpression::Function(function_literal)
+            }
+            other_expression => {
+                return Err(ParserError {
+                    message: format!(
+                    "expected next token to be identifier or function, found: {other_expression:?}",
+                ),
+                })
+            }
+        };
+        let arguments = self.parse_call_arguments()?;
+
+        Ok(Expression::Call(CallExpression {
+            function,
+            arguments,
+        }))
+    }
+
+    fn parse_call_arguments(&mut self) -> Result<Vec<Expression>, ParserError> {
+        let mut arguments = Vec::new();
+
+        if self.peek_token_is(Token::RParen) {
+            self.next_token();
+            return Ok(arguments);
+        }
+
+        self.next_token();
+
+        let argument = self.parse_expression(Precedence::Lowest)?;
+
+        arguments.push(argument);
+
+        while self.peek_token_is(Token::Comma) {
+            self.next_token();
+            self.next_token();
+
+            let argument = self.parse_expression(Precedence::Lowest)?;
+
+            arguments.push(argument);
+        }
+
+        self.expect_peek(Token::RParen)?;
+
+        Ok(arguments)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn parser_test(input: &str, expectation: Program) {
+    fn test_vs_expectation(input: &str, expectation: Program) {
         let lexer = Lexer::new(input.to_string());
         let mut parser = Parser::new(lexer);
 
@@ -464,6 +518,32 @@ mod tests {
             .enumerate()
         {
             assert_eq!(statement, expectation, "test[{index}] - statement");
+        }
+    }
+
+    fn test_vs_code(pairs: Vec<(&str, &str)>) {
+        for (input, expectation) in pairs.iter() {
+            let input_lexer = Lexer::new(input.to_string());
+            let mut input_parser = Parser::new(input_lexer);
+
+            let expectation_lexer = Lexer::new(expectation.to_string());
+            let mut expectation_parser = Parser::new(expectation_lexer);
+
+            let input_program = input_parser.parse_program();
+            let expectation_program = expectation_parser.parse_program();
+
+            eprintln!("{:?}", input_parser.errors);
+            eprintln!("{:?}", expectation_parser.errors);
+            assert!(
+                input_parser.errors.is_empty(),
+                "input_parser.errors is not empty"
+            );
+            assert!(
+                expectation_parser.errors.is_empty(),
+                "expectation_parser.errors is not empty"
+            );
+
+            assert_eq!(input_program.statements, expectation_program.statements);
         }
     }
 
@@ -498,7 +578,7 @@ mod tests {
             ],
         };
 
-        parser_test(input, expectation);
+        test_vs_expectation(input, expectation);
     }
 
     #[test]
@@ -523,7 +603,7 @@ mod tests {
             ],
         };
 
-        parser_test(input, expectation);
+        test_vs_expectation(input, expectation);
     }
 
     #[test]
@@ -540,7 +620,7 @@ mod tests {
             })],
         };
 
-        parser_test(input, expectation);
+        test_vs_expectation(input, expectation);
     }
 
     #[test]
@@ -555,7 +635,7 @@ mod tests {
             })],
         };
 
-        parser_test(input, expectation);
+        test_vs_expectation(input, expectation);
     }
 
     #[test]
@@ -584,7 +664,7 @@ mod tests {
             ],
         };
 
-        parser_test(input, expectation);
+        test_vs_expectation(input, expectation);
     }
 
     #[test]
@@ -631,12 +711,12 @@ mod tests {
             ],
         };
 
-        parser_test(input, expectation);
+        test_vs_expectation(input, expectation);
     }
 
     #[test]
     fn parentheses() {
-        let pairs = [
+        let pairs = vec![
             ("a + b * c + d / e - f", "(((a + (b * c)) + (d / e)) - f)"),
             (
                 "3 + 4 * 5 == 3 * 1 + 4 * 5",
@@ -649,29 +729,7 @@ mod tests {
             ("!(true == true)", "(!(true == true))"),
         ];
 
-        for (input, expectation) in pairs.iter() {
-            let input_lexer = Lexer::new(input.to_string());
-            let mut input_parser = Parser::new(input_lexer);
-
-            let expectation_lexer = Lexer::new(expectation.to_string());
-            let mut expectation_parser = Parser::new(expectation_lexer);
-
-            let input_program = input_parser.parse_program();
-            let expectation_program = expectation_parser.parse_program();
-
-            eprintln!("{:?}", input_parser.errors);
-            eprintln!("{:?}", expectation_parser.errors);
-            assert!(
-                input_parser.errors.is_empty(),
-                "input_parser.errors is not empty"
-            );
-            assert!(
-                expectation_parser.errors.is_empty(),
-                "expectation_parser.errors is not empty"
-            );
-
-            assert_eq!(input_program.statements, expectation_program.statements);
-        }
+        test_vs_code(pairs);
     }
 
     #[test]
@@ -695,7 +753,7 @@ mod tests {
             ],
         };
 
-        parser_test(input, expectation);
+        test_vs_expectation(input, expectation);
     }
 
     #[test]
@@ -728,7 +786,7 @@ mod tests {
             })],
         };
 
-        parser_test(input, expectation);
+        test_vs_expectation(input, expectation);
     }
 
     #[test]
@@ -767,7 +825,7 @@ mod tests {
             })],
         };
 
-        parser_test(input, expectation);
+        test_vs_expectation(input, expectation);
     }
 
     #[test]
@@ -813,6 +871,53 @@ mod tests {
             ],
         };
 
-        parser_test(input, expectation);
+        test_vs_expectation(input, expectation);
+    }
+
+    #[test]
+    fn call_expression() {
+        let input = "add(1, 2 * 3, 4 + 5);";
+
+        let expectation = Program {
+            statements: vec![Statement::Expression(ExpressionStatement {
+                expression: Expression::Call(CallExpression {
+                    function: CallableExpression::Identifier(IdentifierLiteral {
+                        value: "add".to_string(),
+                    }),
+                    arguments: vec![
+                        Expression::Int(IntegerLiteral { value: 1 }),
+                        Expression::Infix(InfixExpression {
+                            left: Box::new(Expression::Int(IntegerLiteral { value: 2 })),
+                            operator: InfixOperator::Asterisk,
+                            right: Box::new(Expression::Int(IntegerLiteral { value: 3 })),
+                        }),
+                        Expression::Infix(InfixExpression {
+                            left: Box::new(Expression::Int(IntegerLiteral { value: 4 })),
+                            operator: InfixOperator::Plus,
+                            right: Box::new(Expression::Int(IntegerLiteral { value: 5 })),
+                        }),
+                    ],
+                }),
+            })],
+        };
+
+        test_vs_expectation(input, expectation);
+    }
+
+    #[test]
+    fn all_operator_precedence() {
+        let pairs = vec![
+            ("a + add(b * c) + d", "((a + add((b * c))) + d)"),
+            (
+                "add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))",
+                "add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))",
+            ),
+            (
+                "add(a + b + c * d / f + g)",
+                "add((((a + b) + ((c * d) / f)) + g))",
+            ),
+        ];
+
+        test_vs_code(pairs);
     }
 }
