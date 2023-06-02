@@ -4,6 +4,14 @@ use std::io::{self, BufRead, Write};
 
 const PROMPT: &str = ">> ";
 
+const MONKEY_FACE: &str = r#"         .-"-.
+       _/_-.-_\_
+      /|( o o )|\
+     / //  "  \\ \ 
+    / / \'---'/ \ \
+    \ \_/`"""`\_/ /
+     \           /"#;
+
 pub fn start<R: BufRead, W: Write>(input: R, mut output: W) -> io::Result<()> {
     let mut lines = input.lines();
 
@@ -24,7 +32,9 @@ pub fn start<R: BufRead, W: Write>(input: R, mut output: W) -> io::Result<()> {
         let program = parser.parse_program();
 
         if !parser.errors.is_empty() {
-            writeln!(output, "ERRORS:")?;
+            writeln!(output, "Woops! We ran into some monkey business here!")?;
+            writeln!(output, "{}", MONKEY_FACE)?;
+            writeln!(output, "PARSER ERRORS:")?;
 
             for error in parser.errors {
                 writeln!(output, "{}", error.message)?;
