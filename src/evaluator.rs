@@ -26,6 +26,7 @@ pub enum TypeMismatch {
 pub enum EvalError {
     UnknownIdentifier(String),
     TypeMismatch(TypeMismatch),
+    BlockNoValue,
 }
 
 impl Display for EvalError {
@@ -49,16 +50,17 @@ impl Display for EvalError {
                     infix_mismatch.right.to_type()
                 ),
             },
+            EvalError::BlockNoValue => write!(f, "Block did not return a value"),
         }
     }
 }
 
 pub trait Node {
-    fn eval(&self) -> Result<Object, EvalError>;
+    fn eval(&self) -> Result<Option<Object>, EvalError>;
 }
 
 impl Node for Statement {
-    fn eval(&self) -> Result<Object, EvalError> {
+    fn eval(&self) -> Result<Option<Object>, EvalError> {
         match self {
             Statement::Let(let_statement) => let_statement.eval(),
             Statement::Return(return_statement) => return_statement.eval(),
@@ -69,49 +71,55 @@ impl Node for Statement {
 }
 
 impl Node for LetStatement {
-    fn eval(&self) -> Result<Object, EvalError> {
+    fn eval(&self) -> Result<Option<Object>, EvalError> {
         let value = self.value.eval()?;
         Ok(value)
     }
 }
 
 impl Node for ReturnStatement {
-    fn eval(&self) -> Result<Object, EvalError> {
+    fn eval(&self) -> Result<Option<Object>, EvalError> {
         let value = self.return_value.eval()?;
         Ok(value)
     }
 }
 
 impl Node for ExpressionStatement {
-    fn eval(&self) -> Result<Object, EvalError> {
+    fn eval(&self) -> Result<Option<Object>, EvalError> {
         let value = self.expression.eval()?;
         Ok(value)
     }
 }
 
 impl Node for BlockStatement {
-    fn eval(&self) -> Result<Object, EvalError> {
-        unimplemented!()
+    fn eval(&self) -> Result<Option<Object>, EvalError> {
+        let mut result = None;
+
+        for statement in self.statements.iter() {
+            result = Some(Node::eval(statement)?);
+        }
+
+        result.ok_or(EvalError::BlockNoValue)
     }
 }
 
 impl Node for Expression {
-    fn eval(&self) -> Result<Object, EvalError> {
+    fn eval(&self) -> Result<Option<Object>, EvalError> {
         match self {
-            Expression::Boolean(boolean) => Ok(Object::Boolean(boolean.value)),
-            Expression::Int(integer) => Ok(Object::Integer(integer.value)),
-            Expression::Identifier(identifier) => unimplemented!(),
+            Expression::Boolean(boolean_literal) => Ok(Object::Boolean(boolean_literal.value)),
+            Expression::Int(integer_literal) => Ok(Object::Integer(integer_literal.value)),
+            Expression::Identifier(identifier_literal) => unimplemented!("Identifier"),
             Expression::Prefix(prefix_expression) => prefix_expression.eval(),
             Expression::Infix(infix_expression) => infix_expression.eval(),
             Expression::If(if_expression) => if_expression.eval(),
-            Expression::Function(function) => unimplemented!(),
-            Expression::Call(call) => unimplemented!(),
+            Expression::Function(function_literal) => unimplemented!("Function"),
+            Expression::Call(call_expression) => unimplemented!("Call"),
         }
     }
 }
 
 impl Node for PrefixExpression {
-    fn eval(&self) -> Result<Object, EvalError> {
+    fn eval(&self) -> Result<Option<Object>, EvalError> {
         let right = self.right.eval()?;
 
         match self.operator {
@@ -130,7 +138,7 @@ impl Node for PrefixExpression {
 }
 
 impl Node for InfixExpression {
-    fn eval(&self) -> Result<Object, EvalError> {
+    fn eval(&self) -> Result<Option<Object>, EvalError> {
         let left = self.left.eval()?;
         let right = self.right.eval()?;
 
@@ -210,7 +218,7 @@ impl Node for InfixExpression {
 }
 
 impl Node for IfExpression {
-    fn eval(&self) -> Result<Object, EvalError> {
+    fn eval(&self) -> Result<Option<Object>, EvalError> {
         let condition = self.condition.eval()?;
 
         if condition.to_bool() {
@@ -221,14 +229,16 @@ impl Node for IfExpression {
     }
 }
 
-pub fn eval_program(program: &Program) -> Result<Option<Object>, EvalError> {
-    let mut result = None;
+impl Node for Program {
+    fn eval(&self) -> Result<Option<Object>, EvalError> {
+        let mut result = None;
 
-    for statement in program.statements.iter() {
-        result = Some(Node::eval(statement)?);
+        for statement in self.statements.iter() {
+            result = Node::eval(statement)?;
+        }
+
+        Ok(result)
     }
-
-    Ok(result)
 }
 
 #[cfg(test)]
@@ -241,7 +251,7 @@ mod tests {
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
         let program = parser.parse_program();
-        return eval_program(&program);
+        return program.eval();
     }
 
     fn test_vs_expectation(input: &str, expected: Option<Object>) {

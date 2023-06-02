@@ -6,3 +6,5 @@ monkey interpreter in rust following the book https://interpreterbook.com/
 
 none is only to represent an expression that doesn't return a value
 all other instances of null in the book are immediate runtime errors
+
+### all ifs must have an else
