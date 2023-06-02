@@ -76,20 +76,22 @@ impl Node for LetStatement {
 
 impl Node for ReturnStatement {
     fn eval(&self) -> Result<Object, EvalError> {
-        let value = self.return_value.eval()?;
+        let value = match self.return_value {
+            Some(ref return_value) => return_value.eval()?,
+            None => Object::None,
+        };
         Ok(Object::ReturnValue(Box::new(value)))
     }
 }
 
 impl Node for ExpressionStatement {
     fn eval(&self) -> Result<Object, EvalError> {
-
         Ok(match self {
             ExpressionStatement::NonTerminating(expression) => expression.eval()?,
             ExpressionStatement::Terminating(expression) => {
                 expression.eval()?;
                 Object::None
-            },
+            }
         })
     }
 }

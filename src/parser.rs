@@ -2,6 +2,7 @@ use crate::ast::*;
 use crate::lexer::Lexer;
 use crate::token::Token;
 use std::collections::HashMap;
+use std::fmt::Display;
 
 impl Token {
     fn get_precedence(&self) -> Precedence {
@@ -68,6 +69,22 @@ pub enum ParserError {
     },
 }
 
+impl Display for ParserError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ParserError::FoundOtherThanExpectedToken { expected, found } => {
+                write!(f, "Expected {:?}, found {:?}", expected, found)
+            }
+            ParserError::NoPrefixParseFnFound { token } => {
+                write!(f, "No prefix parse function found for {:?}", token)
+            }
+            ParserError::NoInfixParseFnFound { token } => {
+                write!(f, "No infix parse function found for {:?}", token)
+            }
+        }
+    }
+}
+
 pub struct Parser {
     lexer: Lexer,
     cur_token: Token,
@@ -98,7 +115,7 @@ impl Parser {
         parser.register_prefix(Token::True, Parser::parse_boolean_literal);
         parser.register_prefix(Token::False, Parser::parse_boolean_literal);
         parser.register_prefix(Token::LParen, Parser::parse_grouped_expression);
-        parser.register_prefix(Token::If, Parser::parse_if_expression);
+        parser.register_prefix(Token::If, Parser::parse_if_else_expression);
         parser.register_prefix(Token::Function, Parser::parse_function_literal);
         parser.register_prefix(Token::LBrace, Parser::parse_block_expression);
 
@@ -138,7 +155,7 @@ impl Parser {
         } else {
             Err(ParserError::FoundOtherThanExpectedToken {
                 expected: NodeExpectation::One(Node::Token(token)),
-                found: Node::Token(self.cur_token),
+                found: Node::Token(self.peek_token.clone()),
             })
         }
     }
@@ -215,8 +232,12 @@ impl Parser {
     fn parse_return_statement(&mut self) -> Result<Statement, ParserError> {
         self.next_token();
 
+        if self.cur_token_is(Token::Semicolon) {
+            return Ok(Statement::Return(ReturnStatement { return_value: None }));
+        }
+
         let statement = Statement::Return(ReturnStatement {
-            return_value: self.parse_expression(Precedence::Lowest)?,
+            return_value: Some(self.parse_expression(Precedence::Lowest)?),
         });
 
         self.expect_peek(Token::Semicolon)?;
@@ -260,7 +281,7 @@ impl Parser {
                 Ok(left_expression)
             }
             None => Err(ParserError::NoPrefixParseFnFound {
-                token: self.cur_token,
+                token: self.cur_token.clone(),
             }),
         }
     }
@@ -342,13 +363,7 @@ impl Parser {
         match self.cur_token.clone() {
             Token::True => Ok(Expression::Boolean(BooleanLiteral { value: true })),
             Token::False => Ok(Expression::Boolean(BooleanLiteral { value: false })),
-            other_token => Err(ParserError::FoundOtherThanExpectedToken {
-                expected: NodeExpectation::Many(vec![
-                    Node::Token(Token::True),
-                    Node::Token(Token::False),
-                ]),
-                found: Node::Token(other_token),
-            }),
+            _ => unreachable!("parse_boolean_literal called only ever be invoked when current token is True or False"),
         }
     }
 
@@ -362,7 +377,7 @@ impl Parser {
         Ok(expression)
     }
 
-    fn parse_if_expression(&mut self) -> Result<Expression, ParserError> {
+    fn parse_if_else_expression(&mut self) -> Result<Expression, ParserError> {
         self.expect_peek(Token::LParen)?;
 
         self.next_token();
@@ -414,7 +429,10 @@ impl Parser {
 
         self.next_token();
 
-        while !self.cur_token_is(Token::RBrace) && !self.cur_token_is(Token::EOF) {
+        loop {
+            if self.cur_token_is(Token::RBrace) {
+                break;
+            }
             let statement = self.parse_statement()?;
             statements.push(statement);
             self.next_token();
@@ -645,20 +663,18 @@ mod tests {
         let input = "
             return 5;
             return 10;
-            return 993322;
+            return;
             ";
 
         let expectation = Program {
             statements: vec![
                 Statement::Return(ReturnStatement {
-                    return_value: Expression::Int(IntegerLiteral { value: 5 }),
+                    return_value: Some(Expression::Int(IntegerLiteral { value: 5 })),
                 }),
                 Statement::Return(ReturnStatement {
-                    return_value: Expression::Int(IntegerLiteral { value: 10 }),
+                    return_value: Some(Expression::Int(IntegerLiteral { value: 10 })),
                 }),
-                Statement::Return(ReturnStatement {
-                    return_value: Expression::Int(IntegerLiteral { value: 993322 }),
-                }),
+                Statement::Return(ReturnStatement { return_value: None }),
             ],
         };
 
@@ -1004,22 +1020,226 @@ mod tests {
         for (input, expectation) in pairs {
             let lexer = Lexer::new(input.to_string());
             let mut parser = Parser::new(lexer);
-            parser.parse_program();
+            let program = parser.parse_program();
 
-            assert_eq!(parser.errors, expectation);
+            if parser.errors.len() < expectation.len() {
+                panic!(
+                    "Expected {} errors, got {}. Program: {:?}",
+                    expectation.len(),
+                    parser.errors.len(),
+                    program.statements
+                );
+            }
+
+            for i in 0..expectation.len() {
+                assert_eq!(parser.errors[i], expectation[i]);
+            }
         }
     }
 
-    #[test]
-    fn errors() {
-        let pairs = vec![(
-            "let x = 5",
-            vec![ParserError::FoundOtherThanExpectedToken {
-                expected: NodeExpectation::One(Node::Token(Token::Semicolon)),
-                found: Node::Token(Token::EOF),
-            }],
-        )];
+    mod errors {
 
-        test_vs_error(pairs);
+        use super::*;
+
+        #[test]
+        fn let_statement() {
+            let pairs = vec![
+                (
+                    "let x = 5",
+                    vec![ParserError::FoundOtherThanExpectedToken {
+                        expected: NodeExpectation::One(Node::Token(Token::Semicolon)),
+                        found: Node::Token(Token::EOF),
+                    }],
+                ),
+                (
+                    "let x 5;",
+                    vec![ParserError::FoundOtherThanExpectedToken {
+                        expected: NodeExpectation::One(Node::Token(Token::Assign)),
+                        found: Node::Token(Token::Int(5)),
+                    }],
+                ),
+                (
+                    "let 5 = 5;",
+                    vec![ParserError::FoundOtherThanExpectedToken {
+                        expected: NodeExpectation::One(Node::Token(Token::Identifier(
+                            String::new(),
+                        ))),
+                        found: Node::Token(Token::Int(5)),
+                    }],
+                ),
+            ];
+
+            test_vs_error(pairs);
+        }
+
+        #[test]
+        fn return_statement() {
+            let pairs = vec![(
+                "return 5",
+                vec![ParserError::FoundOtherThanExpectedToken {
+                    expected: NodeExpectation::One(Node::Token(Token::Semicolon)),
+                    found: Node::Token(Token::EOF),
+                }],
+            )];
+
+            test_vs_error(pairs);
+        }
+
+        #[test]
+        fn no_infix_found() {
+            let pairs = vec![(
+                "5 @ 5",
+                vec![ParserError::NoPrefixParseFnFound {
+                    token: Token::Illegal,
+                }],
+            )];
+
+            test_vs_error(pairs);
+        }
+
+        #[test]
+        fn no_prefix_found() {
+            let pairs = vec![(
+                "&5",
+                vec![ParserError::NoPrefixParseFnFound {
+                    token: Token::Illegal,
+                }],
+            )];
+
+            test_vs_error(pairs);
+        }
+
+        #[test]
+        fn non_matching_parens() {
+            let pairs = vec![
+                (
+                    "((5 + 5);",
+                    vec![ParserError::FoundOtherThanExpectedToken {
+                        expected: NodeExpectation::One(Node::Token(Token::RParen)),
+                        found: Node::Token(Token::Semicolon),
+                    }],
+                ),
+                (
+                    "5 + 5);",
+                    vec![ParserError::NoPrefixParseFnFound {
+                        token: Token::RParen,
+                    }],
+                ),
+                (
+                    "((5 + 5)",
+                    vec![ParserError::FoundOtherThanExpectedToken {
+                        expected: NodeExpectation::One(Node::Token(Token::RParen)),
+                        found: Node::Token(Token::EOF),
+                    }],
+                ),
+            ];
+
+            test_vs_error(pairs);
+        }
+
+        #[test]
+        fn block_expression() {
+            let pairs = vec![(
+                "{ 5",
+                vec![ParserError::NoPrefixParseFnFound { token: Token::EOF }],
+            )];
+
+            test_vs_error(pairs);
+        }
+
+        #[test]
+        fn if_else_expression() {
+            let pairs = vec![
+                (
+                    "if (true) { return; }",
+                    vec![ParserError::FoundOtherThanExpectedToken {
+                        expected: NodeExpectation::One(Node::Token(Token::Else)),
+                        found: Node::Token(Token::EOF),
+                    }],
+                ),
+                (
+                    "if (true) { return; } else",
+                    vec![ParserError::FoundOtherThanExpectedToken {
+                        expected: NodeExpectation::One(Node::Token(Token::LBrace)),
+                        found: Node::Token(Token::EOF),
+                    }],
+                ),
+            ];
+
+            test_vs_error(pairs);
+        }
+
+        #[test]
+        fn function_literal() {
+            let pairs = vec![
+                (
+                    "fn()",
+                    vec![ParserError::FoundOtherThanExpectedToken {
+                        expected: NodeExpectation::One(Node::Token(Token::LBrace)),
+                        found: Node::Token(Token::EOF),
+                    }],
+                ),
+                (
+                    "fn(,x) { return; }",
+                    vec![ParserError::FoundOtherThanExpectedToken {
+                        expected: NodeExpectation::One(Node::Token(Token::Identifier(
+                            String::new(),
+                        ))),
+                        found: Node::Token(Token::Comma),
+                    }],
+                ),
+                (
+                    "fn(x,) { return x; }",
+                    vec![ParserError::FoundOtherThanExpectedToken {
+                        expected: NodeExpectation::One(Node::Token(Token::Identifier(
+                            String::new(),
+                        ))),
+                        found: Node::Token(Token::RParen),
+                    }],
+                ),
+                (
+                    "fn(x, y { return x+y; }",
+                    vec![ParserError::FoundOtherThanExpectedToken {
+                        expected: NodeExpectation::One(Node::Token(Token::RParen)),
+                        found: Node::Token(Token::LBrace),
+                    }],
+                ),
+            ];
+
+            test_vs_error(pairs);
+        }
+
+        #[test]
+        fn call_expression() {
+            let pairs = vec![
+                (
+                    "add(1, 2, 3",
+                    vec![ParserError::FoundOtherThanExpectedToken {
+                        expected: NodeExpectation::One(Node::Token(Token::RParen)),
+                        found: Node::Token(Token::EOF),
+                    }],
+                ),
+                (
+                    "add(1, 2,)",
+                    vec![ParserError::NoPrefixParseFnFound {
+                        token: Token::RParen,
+                    }],
+                ),
+                (
+                    "true()",
+                    vec![ParserError::FoundOtherThanExpectedToken {
+                        expected: NodeExpectation::Many(vec![
+                            Node::Token(Token::Identifier(String::new())),
+                            Node::Token(Token::Function),
+                        ]),
+                        found: Node::Expression(Expression::Boolean(BooleanLiteral {
+                            value: true,
+                        })),
+                    }],
+                ),
+            ];
+
+            test_vs_error(pairs);
+        }
     }
 }

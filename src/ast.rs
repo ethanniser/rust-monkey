@@ -24,7 +24,7 @@ mod statement {
 
     #[derive(Debug, PartialEq)]
     pub struct ReturnStatement {
-        pub return_value: Expression,
+        pub return_value: Option<Expression>,
     }
 
     #[derive(Debug, PartialEq)]

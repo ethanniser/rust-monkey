@@ -37,7 +37,7 @@ pub fn start<R: BufRead, W: Write>(input: R, mut output: W) -> io::Result<()> {
             writeln!(output, "Parser Error:")?;
 
             for error in parser.errors {
-                writeln!(output, "{}", error.message)?;
+                writeln!(output, "{}", error)?;
             }
         }
 
