@@ -52,7 +52,6 @@ pub fn start<R: BufRead, W: Write>(input: R, mut output: W) -> io::Result<()> {
             }
         };
 
-        writeln!(output, "EVAL OUTPUT:")?;
-        writeln!(output, "{:?}", evaluated)?;
+        writeln!(output, "{}", evaluated)?;
     }
 }
