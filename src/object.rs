@@ -12,6 +12,7 @@ pub enum Object {
     Boolean(bool),
     ReturnValue(Box<Rc<Object>>),
     Function(Function),
+    String(String),
 }
 
 impl Object {
@@ -22,6 +23,7 @@ impl Object {
             Object::Boolean(boolean) => *boolean,
             Object::ReturnValue(value) => value.to_bool(),
             Object::Function(_) => true,
+            Object::String(string) => !string.is_empty(),
         }
     }
 
@@ -32,6 +34,7 @@ impl Object {
             Object::Boolean(_) => "Boolean".to_string(),
             Object::ReturnValue(value) => value.to_type(),
             Object::Function(_) => "Function".to_string(),
+            Object::String(_) => "String".to_string(),
         }
     }
 }
@@ -42,6 +45,7 @@ impl Display for Object {
             Object::None => Ok(()),
             Object::Integer(integer) => write!(f, "{}", integer),
             Object::Boolean(boolean) => write!(f, "{}", boolean),
+            Object::String(string) => write!(f, "{}", string),
             Object::ReturnValue(value) => write!(f, "{}", value),
             Object::Function(function) => write!(
                 f,

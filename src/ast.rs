@@ -46,6 +46,7 @@ mod expression {
         Int(IntegerLiteral),
         Boolean(BooleanLiteral),
         Function(FunctionLiteral),
+        String(StringLiteral),
         If(IfExpression),
         Call(CallExpression),
         Block(BlockExpression),
@@ -67,6 +68,11 @@ mod expression {
     #[derive(Debug, PartialEq, Clone)]
     pub struct BooleanLiteral {
         pub value: bool,
+    }
+
+    #[derive(Debug, PartialEq, Clone)]
+    pub struct StringLiteral {
+        pub value: String,
     }
 
     #[derive(Debug, PartialEq, Clone)]
@@ -200,6 +206,7 @@ mod expression {
                 Expression::Identifier(identifier) => write!(f, "{}", identifier.value),
                 Expression::Int(integer) => write!(f, "{}", integer.value),
                 Expression::Boolean(boolean) => write!(f, "{}", boolean.value),
+                Expression::String(string) => write!(f, "{}", string.value),
                 Expression::Function(function) => write!(f, "{}", function),
                 Expression::If(if_expression) => write!(f, "{}", if_expression),
                 Expression::Call(call_expression) => write!(f, "{}", call_expression),

@@ -55,6 +55,10 @@ impl Lexer {
             '/' => Token::Slash,
             '<' => Token::Lt,
             '>' => Token::Gt,
+            '"' => match self.read_string() {
+                Some(s) => Token::String(s),
+                None => Token::UnterminatedString,
+            },
             '\0' => Token::EOF,
             _ => {
                 flag = true;
@@ -65,7 +69,7 @@ impl Lexer {
                     Token::Int(self.read_number())
                 } else {
                     self.read_char();
-                    Token::Illegal
+                    Token::UnknownIllegal
                 }
             }
         };
@@ -74,6 +78,28 @@ impl Lexer {
             self.read_char();
         }
         token
+    }
+
+    fn read_string(&mut self) -> Option<String> {
+        let position = self.position + 1;
+        let mut escape_next = false;
+        loop {
+            self.read_char();
+            if escape_next {
+                escape_next = false;
+            } else if self.ch == '\0' {
+                break;
+            } else if self.ch == '\\' {
+                escape_next = true;
+            } else if self.ch == '"' {
+                break;
+            }
+        }
+        if self.ch == '\0' {
+            return None;
+        }
+
+        Some(self.input[position..self.position].iter().collect())
     }
 
     fn read_char(&mut self) {
@@ -134,7 +160,7 @@ mod tests {
 
     #[test]
     fn lexer() {
-        let input = "
+        let input = r#"
                     let five = 5;
                     let ten = 10;
 
@@ -154,7 +180,10 @@ mod tests {
 
                     10 == 10;
                     10 != 9;
-                    "
+
+                    "foobar"
+                    "foo bar"
+                    "#
         .to_string();
 
         let expected_output = [
@@ -231,6 +260,8 @@ mod tests {
             Token::NotEq,
             Token::Int(9),
             Token::Semicolon,
+            Token::String("foobar".to_string()),
+            Token::String("foo bar".to_string()),
             Token::EOF,
         ];
 
@@ -258,7 +289,7 @@ mod tests {
     #[test]
     fn illegal() {
         let input = "&5".to_string();
-        let expected_output = [Token::Illegal, Token::Int(5), Token::EOF];
+        let expected_output = [Token::UnknownIllegal, Token::Int(5), Token::EOF];
         let mut lexer = Lexer::new(input);
 
         let mut tokens = Vec::new();
@@ -272,6 +303,61 @@ mod tests {
                 break;
             }
         }
+
+        for i in 0..tokens.len() {
+            assert!(tokens[i] == expected_output[i]);
+        }
+
+        assert!(tokens.len() == expected_output.len());
+    }
+
+    #[test]
+    fn unclosed_string() {
+        let input = r#""this is a string"#.to_string();
+        let expected_output = [Token::UnterminatedString, Token::EOF];
+        let mut lexer = Lexer::new(input);
+
+        let mut tokens = Vec::new();
+
+        loop {
+            let token = lexer.next_token();
+
+            tokens.push(token.clone());
+
+            if token == Token::EOF {
+                break;
+            }
+        }
+
+        for i in 0..tokens.len() {
+            assert!(tokens[i] == expected_output[i]);
+        }
+
+        assert!(tokens.len() == expected_output.len());
+    }
+
+    #[test]
+    fn escaped_string() {
+        let input = r#""this is a string with \"quotes\"""#.to_string();
+        let expected_output = [
+            Token::String(r#"this is a string with \"quotes\""#.to_string()),
+            Token::EOF,
+        ];
+        let mut lexer = Lexer::new(input);
+
+        let mut tokens = Vec::new();
+
+        loop {
+            let token = lexer.next_token();
+
+            tokens.push(token.clone());
+
+            if token == Token::EOF {
+                break;
+            }
+        }
+
+        eprintln!("{:?}", tokens);
 
         for i in 0..tokens.len() {
             assert!(tokens[i] == expected_output[i]);

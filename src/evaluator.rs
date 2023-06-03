@@ -131,6 +131,9 @@ impl Node for Expression {
             }
             Expression::Int(integer_literal) => Ok(Rc::new(Object::Integer(integer_literal.value))),
             Expression::Identifier(identifier_literal) => identifier_literal.eval(env),
+            Expression::String(string_literal) => {
+                Ok(Rc::new(Object::String(string_literal.value.clone())))
+            }
             Expression::Prefix(prefix_expression) => prefix_expression.eval(env),
             Expression::Infix(infix_expression) => infix_expression.eval(env),
             Expression::If(if_expression) => if_expression.eval(env),
@@ -274,18 +277,18 @@ impl Node for InfixExpression {
                     },
                 ))),
             },
-            // (Object::String(l_val), Object::String(r_val)) => match self.operator {
-            //     InfixOperator::Plus => Ok(Object::String(format!("{}{}", l_val, r_val))),
-            //     InfixOperator::Equal => Ok(Object::Boolean(l_val == r_val)),
-            //     InfixOperator::NotEqual => Ok(Object::Boolean(l_val != r_val)),
-            //     _ => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
-            //         InfixMismatch {
-            //             left,
-            //             operator: self.operator,
-            //             right,
-            //         },
-            //     ))),
-            // },
+            (Object::String(l_val), Object::String(r_val)) => match self.operator {
+                InfixOperator::Plus => Ok(Rc::new(Object::String(format!("{}{}", l_val, r_val)))),
+                InfixOperator::Equal => Ok(Rc::new(Object::Boolean(l_val == r_val))),
+                InfixOperator::NotEqual => Ok(Rc::new(Object::Boolean(l_val != r_val))),
+                _ => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
+                    InfixMismatch {
+                        left,
+                        operator: self.operator,
+                        right,
+                    },
+                ))),
+            },
             (Object::None, Object::None) => match self.operator {
                 InfixOperator::Equal => Ok(Rc::new(Object::Boolean(true))),
                 InfixOperator::NotEqual => Ok(Rc::new(Object::Boolean(false))),
@@ -602,6 +605,23 @@ mod tests {
         test_vs_code(pairs);
     }
 
+    #[test]
+    fn strings() {
+        let pairs = vec![
+            (
+                r#""hello world""#,
+                Ok(Object::String("hello world".to_string())),
+            ),
+            (r#""""#, Ok(Object::String("".to_string()))),
+            (
+                r#""hello" + " " + "world""#,
+                Ok(Object::String("hello world".to_string())),
+            ),
+        ];
+
+        test_vs_code(pairs);
+    }
+
     mod errors {
 
         use std::vec;
@@ -643,16 +663,28 @@ mod tests {
 
         #[test]
         fn unknown_infix_operator() {
-            let pairs = vec![(
-                "true + false;",
-                Err(EvalError::TypeMismatch(TypeMismatch::Infix(
-                    InfixMismatch {
-                        left: Rc::new(Object::Boolean(true)),
-                        operator: InfixOperator::Plus,
-                        right: Rc::new(Object::Boolean(false)),
-                    },
-                ))),
-            )];
+            let pairs = vec![
+                (
+                    "true + false;",
+                    Err(EvalError::TypeMismatch(TypeMismatch::Infix(
+                        InfixMismatch {
+                            left: Rc::new(Object::Boolean(true)),
+                            operator: InfixOperator::Plus,
+                            right: Rc::new(Object::Boolean(false)),
+                        },
+                    ))),
+                ),
+                (
+                    r#""string" - "string""#,
+                    Err(EvalError::TypeMismatch(TypeMismatch::Infix(
+                        InfixMismatch {
+                            left: Rc::new(Object::String("string".to_string())),
+                            operator: InfixOperator::Minus,
+                            right: Rc::new(Object::String("string".to_string())),
+                        },
+                    ))),
+                ),
+            ];
 
             test_vs_code(pairs);
         }

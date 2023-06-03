@@ -113,8 +113,8 @@ impl Parser {
     pub fn new(lexer: Lexer) -> Parser {
         let mut parser = Parser {
             lexer,
-            cur_token: Token::Illegal,
-            peek_token: Token::Illegal,
+            cur_token: Token::UnknownIllegal,
+            peek_token: Token::UnknownIllegal,
             errors: Vec::new(),
             prefix_parse_fns: HashMap::new(),
             infix_parse_fns: HashMap::new(),
@@ -134,6 +134,8 @@ impl Parser {
         parser.register_prefix(Token::Function, Parser::parse_function_literal);
         parser.register_prefix(Token::LBrace, Parser::parse_block_expression);
         parser.register_prefix(Token::None, Parser::parse_none_literal);
+        parser.register_prefix(Token::String("".to_string()), Parser::parse_string_literal);
+        parser.register_prefix(Token::UnterminatedString, Parser::parse_string_literal);
 
         parser.register_infix(Token::Plus, Parser::parse_infix_expression);
         parser.register_infix(Token::Minus, Parser::parse_infix_expression);
@@ -376,6 +378,19 @@ impl Parser {
             Token::True => Ok(Expression::Boolean(BooleanLiteral { value: true })),
             Token::False => Ok(Expression::Boolean(BooleanLiteral { value: false })),
             _ => unreachable!("parse_boolean_literal called only ever be invoked when current token is True or False"),
+        }
+    }
+
+    fn parse_string_literal(&mut self) -> Result<Expression, ParserError> {
+        match self.cur_token.clone() {
+            Token::UnterminatedString => Err(ParserError::FoundOtherThanExpectedToken {
+                expected: NodeExpectation::One(Node::Token(Token::String(String::new()))),
+                found: Node::Token(self.cur_token.clone()),
+            }),
+            Token::String(value) => Ok(Expression::String(StringLiteral { value })),
+            _ => unreachable!(
+                "parse_string_literal called only ever be invoked when current token is String"
+            ),
         }
     }
 
@@ -1100,6 +1115,32 @@ mod tests {
         test_vs_expectation(input, expectation);
     }
 
+    #[test]
+    fn string_literal() {
+        let input = "
+        \"hello world\";
+        let x = \"hello world\";
+        ";
+        let expectation = Program {
+            statements: vec![
+                Statement::Expression(ExpressionStatement::Terminating(Expression::String(
+                    StringLiteral {
+                        value: "hello world".to_string(),
+                    },
+                ))),
+                Statement::Let(LetStatement {
+                    name: IdentifierLiteral {
+                        value: "x".to_string(),
+                    },
+                    value: Expression::String(StringLiteral {
+                        value: "hello world".to_string(),
+                    }),
+                }),
+            ],
+        };
+        test_vs_expectation(input, expectation);
+    }
+
     mod errors {
 
         use super::*;
@@ -1174,7 +1215,7 @@ mod tests {
             let pairs = vec![(
                 "5 @ 5",
                 vec![ParserError::NoPrefixParseFnFound {
-                    token: Token::Illegal,
+                    token: Token::UnknownIllegal,
                 }],
             )];
 
@@ -1186,7 +1227,7 @@ mod tests {
             let pairs = vec![(
                 "&5",
                 vec![ParserError::NoPrefixParseFnFound {
-                    token: Token::Illegal,
+                    token: Token::UnknownIllegal,
                 }],
             )];
 
@@ -1313,6 +1354,19 @@ mod tests {
                     }],
                 ),
             ];
+
+            test_vs_error(pairs);
+        }
+
+        #[test]
+        fn unterminated_string() {
+            let pairs = vec![(
+                r#""hello"#,
+                vec![ParserError::FoundOtherThanExpectedToken {
+                    expected: NodeExpectation::One(Node::Token(Token::String(String::new()))),
+                    found: Node::Token(Token::UnterminatedString),
+                }],
+            )];
 
             test_vs_error(pairs);
         }
