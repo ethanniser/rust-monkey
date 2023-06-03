@@ -51,7 +51,7 @@ mod expression {
         Block(BlockExpression),
         Prefix(PrefixExpression),
         Infix(InfixExpression),
-        None,
+        NoneLiteral,
     }
 
     #[derive(Debug, PartialEq)]
@@ -79,7 +79,7 @@ mod expression {
     pub struct IfExpression {
         pub condition: Box<Expression>,
         pub consequence: BlockExpression,
-        pub alternative: BlockExpression,
+        pub alternative: Option<BlockExpression>,
     }
 
     #[derive(Debug, PartialEq)]

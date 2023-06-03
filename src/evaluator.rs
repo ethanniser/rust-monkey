@@ -98,7 +98,18 @@ impl Node for ExpressionStatement {
 
 impl Node for BlockExpression {
     fn eval(&self) -> Result<Object, EvalError> {
-        eval_statements(&self.statements)
+        let mut result = Object::None;
+
+        for statement in self.statements.iter() {
+            result = statement.eval()?;
+
+            match result {
+                Object::ReturnValue(value) => return Ok(Object::ReturnValue(value)),
+                _ => (),
+            }
+        }
+
+        Ok(result)
     }
 }
 
@@ -114,7 +125,7 @@ impl Node for Expression {
             Expression::Function(_function_literal) => unimplemented!("Function"),
             Expression::Call(_call_expression) => unimplemented!("Call"),
             Expression::Block(block_expression) => block_expression.eval(),
-            Expression::None => Ok(Object::None),
+            Expression::NoneLiteral => Ok(Object::None),
         }
     }
 }
@@ -207,6 +218,39 @@ impl Node for InfixExpression {
             //         },
             //     ))),
             // },
+            (Object::None, Object::None) => match self.operator {
+                InfixOperator::Equal => Ok(Object::Boolean(true)),
+                InfixOperator::NotEqual => Ok(Object::Boolean(false)),
+                _ => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
+                    InfixMismatch {
+                        left,
+                        operator: self.operator,
+                        right,
+                    },
+                ))),
+            },
+            (Object::None, _) => match self.operator {
+                InfixOperator::Equal => Ok(Object::Boolean(false)),
+                InfixOperator::NotEqual => Ok(Object::Boolean(true)),
+                _ => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
+                    InfixMismatch {
+                        left,
+                        operator: self.operator,
+                        right,
+                    },
+                ))),
+            },
+            (_, Object::None) => match self.operator {
+                InfixOperator::Equal => Ok(Object::Boolean(false)),
+                InfixOperator::NotEqual => Ok(Object::Boolean(true)),
+                _ => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
+                    InfixMismatch {
+                        left,
+                        operator: self.operator,
+                        right,
+                    },
+                ))),
+            },
             (left, right) => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
                 InfixMismatch {
                     left: left,
@@ -225,30 +269,29 @@ impl Node for IfExpression {
         if condition.to_bool() {
             self.consequence.eval()
         } else {
-            self.alternative.eval()
+            match &self.alternative {
+                Some(alternative) => alternative.eval(),
+                None => Ok(Object::None),
+            }
         }
     }
 }
 
 impl Node for Program {
     fn eval(&self) -> Result<Object, EvalError> {
-        eval_statements(&self.statements)
-    }
-}
+        let mut result = Object::None;
 
-fn eval_statements(statements: &Vec<Statement>) -> Result<Object, EvalError> {
-    let mut result = Object::None;
+        for statement in self.statements.iter() {
+            result = statement.eval()?;
 
-    for statement in statements.iter() {
-        result = statement.eval()?;
-
-        match result {
-            Object::ReturnValue(value) => return Ok(*value),
-            _ => (),
+            match result {
+                Object::ReturnValue(value) => return Ok(*value),
+                _ => (),
+            }
         }
-    }
 
-    Ok(result)
+        Ok(result)
+    }
 }
 
 #[cfg(test)]
@@ -258,9 +301,16 @@ mod tests {
     use crate::parser::Parser;
 
     fn test_eval(input: String) -> Result<Object, EvalError> {
-        let lexer = Lexer::new(input);
+        let lexer = Lexer::new(input.clone());
         let mut parser = Parser::new(lexer);
         let program = parser.parse_program();
+        if !parser.errors.is_empty() {
+            eprintln!("parsing error for input: \"{input}\"");
+            for error in parser.errors.iter() {
+                eprintln!("ERROR: {}", error);
+            }
+            eprintln!();
+        }
         return program.eval();
     }
 
@@ -371,7 +421,28 @@ mod tests {
             ("return 10; 9;", Ok(Object::Integer(10))),
             ("return 2 * 5; 9;", Ok(Object::Integer(10))),
             ("9; return 2 * 5; 9;", Ok(Object::Integer(10))),
+            (
+                "
+                if (10 > 1) { 
+                  if (10 > 1) { 
+                    return 10; 
+                  }
+                  return 1; 
+                }",
+                Ok(Object::Integer(10)),
+            ),
         ];
+        test_vs_code(pairs);
+    }
+
+    #[test]
+    fn none() {
+        let pairs = vec![
+            ("let x = 5;", Ok(Object::None)),
+            ("none == true", Ok(Object::Boolean(false))),
+            ("none == false", Ok(Object::Boolean(false))),
+        ];
+
         test_vs_code(pairs);
     }
 }

@@ -55,6 +55,21 @@ pub enum NodeExpectation {
     Many(Vec<Node>),
 }
 
+impl Display for NodeExpectation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NodeExpectation::One(node) => write!(f, "{:?}", node),
+            NodeExpectation::Many(nodes) => {
+                let mut nodes_str = String::new();
+                for node in nodes {
+                    nodes_str.push_str(&format!("{:?}, ", node));
+                }
+                write!(f, "{}", nodes_str)
+            }
+        }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum ParserError {
     FoundOtherThanExpectedToken {
@@ -73,7 +88,7 @@ impl Display for ParserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ParserError::FoundOtherThanExpectedToken { expected, found } => {
-                write!(f, "Expected {:?}, found {:?}", expected, found)
+                write!(f, "Expected {}, found {:?}", expected, found)
             }
             ParserError::NoPrefixParseFnFound { token } => {
                 write!(f, "No prefix parse function found for {:?}", token)
@@ -115,7 +130,7 @@ impl Parser {
         parser.register_prefix(Token::True, Parser::parse_boolean_literal);
         parser.register_prefix(Token::False, Parser::parse_boolean_literal);
         parser.register_prefix(Token::LParen, Parser::parse_grouped_expression);
-        parser.register_prefix(Token::If, Parser::parse_if_else_expression);
+        parser.register_prefix(Token::If, Parser::parse_if_expression);
         parser.register_prefix(Token::Function, Parser::parse_function_literal);
         parser.register_prefix(Token::LBrace, Parser::parse_block_expression);
         parser.register_prefix(Token::None, Parser::parse_none_literal);
@@ -366,7 +381,7 @@ impl Parser {
 
     fn parse_none_literal(&mut self) -> Result<Expression, ParserError> {
         match self.cur_token.clone() {
-            Token::None => Ok(Expression::None),
+            Token::None => Ok(Expression::NoneLiteral),
             _ => unreachable!(
                 "parse_none_literal called only ever be invoked when current token is None"
             ),
@@ -383,7 +398,7 @@ impl Parser {
         Ok(expression)
     }
 
-    fn parse_if_else_expression(&mut self) -> Result<Expression, ParserError> {
+    fn parse_if_expression(&mut self) -> Result<Expression, ParserError> {
         self.expect_peek(Token::LParen)?;
 
         self.next_token();
@@ -407,27 +422,35 @@ impl Parser {
             }
         }?;
 
-        self.expect_peek(Token::Else)?;
-        self.expect_peek(Token::LBrace)?;
-        let alternative = match self.parse_block_expression()? {
-            Expression::Block(body) => Ok(body),
-            other_expression => {
-                return Err(ParserError::FoundOtherThanExpectedToken {
-                    expected: NodeExpectation::One(Node::Expression(Expression::Block(
-                        BlockExpression {
-                            statements: Vec::new(),
-                        },
-                    ))),
-                    found: Node::Expression(other_expression),
-                })
-            }
-        }?;
+        if self.peek_token_is(Token::Else) {
+            self.next_token();
+            self.expect_peek(Token::LBrace)?;
+            let alternative = match self.parse_block_expression()? {
+                Expression::Block(body) => Ok(Some(body)),
+                other_expression => {
+                    return Err(ParserError::FoundOtherThanExpectedToken {
+                        expected: NodeExpectation::One(Node::Expression(Expression::Block(
+                            BlockExpression {
+                                statements: Vec::new(),
+                            },
+                        ))),
+                        found: Node::Expression(other_expression),
+                    })
+                }
+            }?;
 
-        Ok(Expression::If(IfExpression {
-            condition: Box::new(condition),
-            consequence,
-            alternative,
-        }))
+            Ok(Expression::If(IfExpression {
+                condition: Box::new(condition),
+                consequence,
+                alternative,
+            }))
+        } else {
+            Ok(Expression::If(IfExpression {
+                condition: Box::new(condition),
+                consequence,
+                alternative: None,
+            }))
+        }
     }
 
     fn parse_block_expression(&mut self) -> Result<Expression, ParserError> {
@@ -838,6 +861,41 @@ mod tests {
     }
 
     #[test]
+    fn if_expression() {
+        let input = "
+            if (x < y) { x };
+            ";
+
+        let expectation = Program {
+            statements: vec![Statement::Expression(ExpressionStatement::Terminating(
+                Expression::If(IfExpression {
+                    condition: Box::new(Expression::Infix(InfixExpression {
+                        left: Box::new(Expression::Identifier(IdentifierLiteral {
+                            value: "x".to_string(),
+                        })),
+                        operator: InfixOperator::LessThan,
+                        right: Box::new(Expression::Identifier(IdentifierLiteral {
+                            value: "y".to_string(),
+                        })),
+                    })),
+                    consequence: BlockExpression {
+                        statements: vec![Statement::Expression(
+                            ExpressionStatement::NonTerminating(Expression::Identifier(
+                                IdentifierLiteral {
+                                    value: "x".to_string(),
+                                },
+                            )),
+                        )],
+                    },
+                    alternative: None,
+                }),
+            ))],
+        };
+
+        test_vs_expectation(input, expectation);
+    }
+
+    #[test]
     fn if_else_expression() {
         let input = "
             if (x < y) { x } else { y };
@@ -864,7 +922,7 @@ mod tests {
                             )),
                         )],
                     },
-                    alternative: BlockExpression {
+                    alternative: Some(BlockExpression {
                         statements: vec![Statement::Expression(
                             ExpressionStatement::NonTerminating(Expression::Identifier(
                                 IdentifierLiteral {
@@ -872,7 +930,7 @@ mod tests {
                                 },
                             )),
                         )],
-                    },
+                    }),
                 }),
             ))],
         };
@@ -1030,12 +1088,12 @@ mod tests {
         ";
         let expectation = Program {
             statements: vec![
-                Statement::Expression(ExpressionStatement::Terminating(Expression::None)),
+                Statement::Expression(ExpressionStatement::Terminating(Expression::NoneLiteral)),
                 Statement::Let(LetStatement {
                     name: IdentifierLiteral {
                         value: "x".to_string(),
                     },
-                    value: Expression::None,
+                    value: Expression::NoneLiteral,
                 }),
             ],
         };
@@ -1175,22 +1233,13 @@ mod tests {
 
         #[test]
         fn if_else_expression() {
-            let pairs = vec![
-                (
-                    "if (true) { return; }",
-                    vec![ParserError::FoundOtherThanExpectedToken {
-                        expected: NodeExpectation::One(Node::Token(Token::Else)),
-                        found: Node::Token(Token::EOF),
-                    }],
-                ),
-                (
-                    "if (true) { return; } else",
-                    vec![ParserError::FoundOtherThanExpectedToken {
-                        expected: NodeExpectation::One(Node::Token(Token::LBrace)),
-                        found: Node::Token(Token::EOF),
-                    }],
-                ),
-            ];
+            let pairs = vec![(
+                "if (true) { return; } else",
+                vec![ParserError::FoundOtherThanExpectedToken {
+                    expected: NodeExpectation::One(Node::Token(Token::LBrace)),
+                    found: Node::Token(Token::EOF),
+                }],
+            )];
 
             test_vs_error(pairs);
         }
