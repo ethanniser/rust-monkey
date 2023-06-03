@@ -29,6 +29,8 @@ pub enum EvalError {
     UnknownIdentifier(String),
     TypeMismatch(TypeMismatch),
     CallOnNonFunction(Rc<Object>),
+    ArgumentMismatch { expected: usize, got: usize },
+    BuiltInFunction(BuiltInFunctionError),
 }
 
 impl Display for EvalError {
@@ -55,6 +57,10 @@ impl Display for EvalError {
             EvalError::CallOnNonFunction(object) => {
                 write!(f, "Tried to call non-function object: {}", object)
             }
+            EvalError::ArgumentMismatch { expected, got } => {
+                write!(f, "Expected {} arguments, got {}", expected, got)
+            }
+            EvalError::BuiltInFunction(_) => write!(f, "Error in built-in function"),
         }
     }
 }
@@ -178,8 +184,19 @@ impl Node for CallExpression {
             env,
         } = match function.as_ref() {
             Object::Function(function) => function,
+            Object::BuiltIn(BuiltInFunction { function, .. }) => match function(args) {
+                Ok(object) => return Ok(object),
+                Err(error) => return Err(EvalError::BuiltInFunction(error)),
+            },
             other => return Err(EvalError::CallOnNonFunction(Rc::new(other.clone()))),
         };
+
+        if args.len() != parameters.len() {
+            return Err(EvalError::ArgumentMismatch {
+                expected: parameters.len(),
+                got: args.len(),
+            });
+        }
 
         let env = Environment::new_enclosed(&env);
 
@@ -397,7 +414,7 @@ mod tests {
         return program.eval(env);
     }
 
-    fn test_vs_code(pairs: Vec<(&str, Result<Object, EvalError>)>) {
+    pub fn test_vs_code(pairs: Vec<(&str, Result<Object, EvalError>)>) {
         for (input, expectation) in pairs.iter() {
             let ref program_result = match test_eval(input.to_string()) {
                 Ok(object) => match Rc::try_unwrap(object).ok() {
@@ -714,13 +731,13 @@ mod tests {
         fn nested_error() {
             let pairs = vec![(
                 "
-        if (10 > 1) {
-          if (10 > 1) {
-            return true + false;
-          }
-            return 1;
-          }
-        ",
+                if (10 > 1) {
+                  if (10 > 1) {
+                    return true + false;
+                  }
+                    return 1;
+                  }
+                ",
                 Err(EvalError::TypeMismatch(TypeMismatch::Infix(
                     InfixMismatch {
                         left: Rc::new(Object::Boolean(true)),
@@ -751,6 +768,88 @@ mod tests {
                 ",
                 Err(EvalError::CallOnNonFunction(Rc::new(Object::Integer(5)))),
             )];
+            test_vs_code(pairs);
+        }
+    }
+}
+
+pub use built_in_functions::*;
+
+pub mod built_in_functions {
+    use super::*;
+    use std::fmt::Formatter;
+
+    pub type BuiltInFunctionType = fn(Vec<Rc<Object>>) -> Result<Rc<Object>, BuiltInFunctionError>;
+
+    #[derive(Debug, PartialEq)]
+    pub struct BuiltInFunctionError;
+
+    #[derive(Debug, PartialEq, Clone)]
+    pub struct BuiltInFunction {
+        pub function: BuiltInFunctionType,
+        type_signature: &'static str,
+    }
+
+    impl Display for BuiltInFunction {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.type_signature)
+        }
+    }
+
+    pub struct BuiltIns {
+        pub functions: Vec<(String, BuiltInFunction)>,
+    }
+
+    impl BuiltIns {
+        pub fn new() -> Self {
+            let functions = vec![(
+                "len".to_string(),
+                BuiltInFunction {
+                    function: len,
+                    type_signature: "len(x: string) -> integer",
+                },
+            )];
+
+            Self {
+                functions: functions,
+            }
+        }
+    }
+
+    fn len(args: Vec<Rc<Object>>) -> Result<Rc<Object>, BuiltInFunctionError> {
+        if args.len() != 1 {
+            return Err(BuiltInFunctionError);
+        }
+
+        match &*args[0] {
+            Object::String(s) => Ok(Rc::new(Object::Integer(s.len() as isize))),
+            _ => Err(BuiltInFunctionError),
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+
+        use crate::evaluator::tests::test_vs_code;
+
+        use super::*;
+
+        #[test]
+        fn length() {
+            let pairs = vec![
+                (r#"len("")"#, Ok(Object::Integer(0))),
+                (r#"len("four")"#, Ok(Object::Integer(4))),
+                (r#"len("hello world")"#, Ok(Object::Integer(11))),
+                (
+                    "len(1)",
+                    Err(EvalError::BuiltInFunction(BuiltInFunctionError)),
+                ),
+                (
+                    r#"len("one", "two")"#,
+                    Err(EvalError::BuiltInFunction(BuiltInFunctionError)),
+                ),
+            ];
+
             test_vs_code(pairs);
         }
     }

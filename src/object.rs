@@ -3,6 +3,7 @@ use std::{fmt::Display, rc::Rc};
 use crate::{
     ast::{BlockExpression, FunctionLiteral, IdentifierLiteral},
     environment::Env,
+    evaluator::BuiltInFunction,
 };
 
 #[derive(Debug, PartialEq, Clone)]
@@ -13,6 +14,7 @@ pub enum Object {
     ReturnValue(Box<Rc<Object>>),
     Function(Function),
     String(String),
+    BuiltIn(BuiltInFunction),
 }
 
 impl Object {
@@ -24,6 +26,7 @@ impl Object {
             Object::ReturnValue(value) => value.to_bool(),
             Object::Function(_) => true,
             Object::String(string) => !string.is_empty(),
+            Object::BuiltIn(_) => true,
         }
     }
 
@@ -35,6 +38,7 @@ impl Object {
             Object::ReturnValue(value) => value.to_type(),
             Object::Function(_) => "Function".to_string(),
             Object::String(_) => "String".to_string(),
+            Object::BuiltIn(_) => "Function".to_string(),
         }
     }
 }
@@ -55,6 +59,7 @@ impl Display for Object {
                     body: function.body.clone()
                 }
             ),
+            Object::BuiltIn(built_in) => write!(f, "BUILT IN FUNCTION: {}", built_in),
         }
     }
 }
