@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::fmt::Display;
+use std::rc::Rc;
 
 use crate::ast::*;
 use crate::environment::Environment;
@@ -125,10 +127,33 @@ impl Node for Expression {
             Expression::Infix(infix_expression) => infix_expression.eval(env),
             Expression::If(if_expression) => if_expression.eval(env),
             Expression::Function(function_literal) => function_literal.eval(env),
-            Expression::Call(_call_expression) => unimplemented!("Call"),
+            Expression::Call(call_expression) => call_expression.eval(env),
             Expression::Block(block_expression) => block_expression.eval(env),
             Expression::NoneLiteral => Ok(Object::None),
         }
+    }
+}
+
+impl Node for CallExpression {
+    fn eval(&self, env: &mut Environment) -> Result<Object, EvalError> {
+        let function = match &self.function {
+            CallableExpression::Identifier(identifier) => match env.get(&identifier.value) {
+                Some(Object::Function(function)) => function.clone(),
+                _ => return Err(EvalError::UnknownIdentifier(identifier.value.clone())),
+            },
+            CallableExpression::Function(function) => match function.eval(env)? {
+                Object::Function(function) => function.clone(),
+                _ => unreachable!("function literal should always evaluate to a function"),
+            },
+        };
+
+        let evaluated_args = self
+            .arguments
+            .iter()
+            .map(|arg| arg.eval(env))
+            .collect::<Result<Vec<Object>, EvalError>>()?;
+
+        todo!();
     }
 }
 
@@ -137,7 +162,7 @@ impl Node for FunctionLiteral {
         Ok(Object::Function(Function {
             parameters: self.parameters.clone(),
             body: self.body.clone(),
-            env: env.clone(),
+            env: Rc::new(RefCell::new(Environment::new_enclosed(env))),
         }))
     }
 }
@@ -502,9 +527,37 @@ mod tests {
                         }),
                     ))],
                 },
-                env: Environment::new(),
+                env: Rc::new(RefCell::new(Environment::new())),
             })),
         )];
+        test_vs_code(pairs);
+    }
+
+    #[test]
+    fn function_calling() {
+        let pairs = vec![
+            (
+                "let identity = fn(x) { x }; identity(5);",
+                Ok(Object::Integer(5)),
+            ),
+            (
+                "let identity = fn(x) { return x; }; identity(5);",
+                Ok(Object::Integer(5)),
+            ),
+            (
+                "let double = fn(x) { x * 2 }; double(5);",
+                Ok(Object::Integer(10)),
+            ),
+            (
+                "let add = fn(x, y) { x + y }; add(5, 5);",
+                Ok(Object::Integer(10)),
+            ),
+            (
+                "let add = fn(x, y) { x + y }; add(5 + 5, add(5, 5));",
+                Ok(Object::Integer(20)),
+            ),
+            ("fn(x) { x }(5)", Ok(Object::Integer(5))),
+        ];
         test_vs_code(pairs);
     }
 

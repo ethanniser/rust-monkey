@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{cell::RefCell, fmt::Display, rc::Rc};
 
 use crate::{
     ast::{BlockExpression, FunctionLiteral, IdentifierLiteral},
@@ -59,5 +59,5 @@ impl Display for Object {
 pub struct Function {
     pub parameters: Vec<IdentifierLiteral>,
     pub body: BlockExpression,
-    pub env: Environment,
+    pub env: Rc<RefCell<Environment>>,
 }
