@@ -55,6 +55,8 @@ impl Lexer {
             '/' => Token::Slash,
             '<' => Token::Lt,
             '>' => Token::Gt,
+            '[' => Token::LBracket,
+            ']' => Token::RBracket,
             '"' => match self.read_string() {
                 Some(s) => Token::String(s),
                 None => Token::UnterminatedString,
@@ -183,6 +185,7 @@ mod tests {
 
                     "foobar"
                     "foo bar"
+                    [1, 2]
                     "#
         .to_string();
 
@@ -262,6 +265,11 @@ mod tests {
             Token::Semicolon,
             Token::String("foobar".to_string()),
             Token::String("foo bar".to_string()),
+            Token::LBracket,
+            Token::Int(1),
+            Token::Comma,
+            Token::Int(2),
+            Token::RBracket,
             Token::EOF,
         ];
 

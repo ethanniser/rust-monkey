@@ -22,6 +22,8 @@ pub enum Token {
     RParen,
     LBrace,
     RBrace,
+    LBracket,
+    RBracket,
     Function,
     Let,
     True,
@@ -66,6 +68,8 @@ impl PartialEq for Token {
             (Token::Else, Token::Else) => true,
             (Token::Return, Token::Return) => true,
             (Token::None, Token::None) => true,
+            (Token::LBracket, Token::LBracket) => true,
+            (Token::RBracket, Token::RBracket) => true,
             _ => false,
         }
     }
@@ -167,6 +171,12 @@ impl Hash for Token {
             }
             Token::UnterminatedString => {
                 30.hash(state);
+            }
+            Token::LBracket => {
+                31.hash(state);
+            }
+            Token::RBracket => {
+                32.hash(state);
             }
         }
     }

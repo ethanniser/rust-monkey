@@ -136,6 +136,7 @@ impl Parser {
         parser.register_prefix(Token::None, Parser::parse_none_literal);
         parser.register_prefix(Token::String("".to_string()), Parser::parse_string_literal);
         parser.register_prefix(Token::UnterminatedString, Parser::parse_string_literal);
+        parser.register_prefix(Token::LBracket, Parser::parse_array_literal);
 
         parser.register_infix(Token::Plus, Parser::parse_infix_expression);
         parser.register_infix(Token::Minus, Parser::parse_infix_expression);
@@ -428,6 +429,12 @@ impl Parser {
         }
     }
 
+    fn parse_array_literal(&mut self) -> Result<Expression, ParserError> {
+        let elements = self.parse_expression_list(Token::RBracket)?;
+
+        Ok(Expression::Array(ArrayLiteral { elements }))
+    }
+
     fn parse_grouped_expression(&mut self) -> Result<Expression, ParserError> {
         self.next_token();
 
@@ -598,7 +605,7 @@ impl Parser {
                 });
             }
         };
-        let arguments = self.parse_call_arguments()?;
+        let arguments = self.parse_expression_list(Token::RParen)?;
 
         Ok(Expression::Call(CallExpression {
             function,
@@ -606,10 +613,10 @@ impl Parser {
         }))
     }
 
-    fn parse_call_arguments(&mut self) -> Result<Vec<Expression>, ParserError> {
+    fn parse_expression_list(&mut self, end: Token) -> Result<Vec<Expression>, ParserError> {
         let mut arguments = Vec::new();
 
-        if self.peek_token_is(Token::RParen) {
+        if self.peek_token_is(end.clone()) {
             self.next_token();
             return Ok(arguments);
         }
@@ -629,7 +636,7 @@ impl Parser {
             arguments.push(argument);
         }
 
-        self.expect_peek(Token::RParen)?;
+        self.expect_peek(end)?;
 
         Ok(arguments)
     }
@@ -1182,6 +1189,33 @@ mod tests {
         test_vs_expectation(input, expectation);
     }
 
+    #[test]
+    fn array_literal() {
+        let input = "
+        [1, 2 * 2, 3 + 3]
+        ";
+        let expectation = Program {
+            statements: vec![Statement::Expression(ExpressionStatement::NonTerminating(
+                Expression::Array(ArrayLiteral {
+                    elements: vec![
+                        Expression::Int(IntegerLiteral { value: 1 }),
+                        Expression::Infix(InfixExpression {
+                            left: Box::new(Expression::Int(IntegerLiteral { value: 2 })),
+                            operator: InfixOperator::Asterisk,
+                            right: Box::new(Expression::Int(IntegerLiteral { value: 2 })),
+                        }),
+                        Expression::Infix(InfixExpression {
+                            left: Box::new(Expression::Int(IntegerLiteral { value: 3 })),
+                            operator: InfixOperator::Plus,
+                            right: Box::new(Expression::Int(IntegerLiteral { value: 3 })),
+                        }),
+                    ],
+                }),
+            ))],
+        };
+        test_vs_expectation(input, expectation);
+    }
+
     mod errors {
 
         use super::*;
@@ -1408,6 +1442,27 @@ mod tests {
                     found: Node::Token(Token::UnterminatedString),
                 }],
             )];
+
+            test_vs_error(pairs);
+        }
+
+        #[test]
+        fn array_literal() {
+            let pairs = vec![
+                (
+                    "[1, 2, 3",
+                    vec![ParserError::FoundOtherThanExpectedToken {
+                        expected: NodeExpectation::One(Node::Token(Token::RBracket)),
+                        found: Node::Token(Token::EOF),
+                    }],
+                ),
+                (
+                    "[1, 2,]",
+                    vec![ParserError::NoPrefixParseFnFound {
+                        token: Token::RBracket,
+                    }],
+                ),
+            ];
 
             test_vs_error(pairs);
         }

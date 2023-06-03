@@ -54,12 +54,18 @@ mod expression {
         Boolean(BooleanLiteral),
         Function(FunctionLiteral),
         String(StringLiteral),
+        Array(ArrayLiteral),
         If(IfExpression),
         Call(CallExpression),
         Block(BlockExpression),
         Prefix(PrefixExpression),
         Infix(InfixExpression),
         NoneLiteral,
+    }
+
+    #[derive(Debug, PartialEq, Clone)]
+    pub struct ArrayLiteral {
+        pub elements: Vec<Expression>,
     }
 
     #[derive(Debug, PartialEq, Clone)]
@@ -222,7 +228,21 @@ mod expression {
                 Expression::Prefix(prefix_expression) => write!(f, "{}", prefix_expression),
                 Expression::Infix(infix_expression) => write!(f, "{}", infix_expression),
                 Expression::NoneLiteral => write!(f, "none"),
+                Expression::Array(array) => write!(f, "{}", array),
             }
+        }
+    }
+
+    impl Display for ArrayLiteral {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let elements = self
+                .elements
+                .iter()
+                .map(|expression| format!("{}", expression))
+                .collect::<Vec<_>>()
+                .join(", ");
+
+            write!(f, "[{}]", elements)
         }
     }
 

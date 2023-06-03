@@ -33,12 +33,12 @@ impl Object {
     pub fn to_type(&self) -> String {
         match self {
             Object::None => "none".to_string(),
-            Object::Integer(_) => "Integer".to_string(),
-            Object::Boolean(_) => "Boolean".to_string(),
+            Object::Integer(_) => "integer".to_string(),
+            Object::Boolean(_) => "boolean".to_string(),
             Object::ReturnValue(value) => value.to_type(),
-            Object::Function(_) => "Function".to_string(),
-            Object::String(_) => "String".to_string(),
-            Object::BuiltIn(_) => "Function".to_string(),
+            Object::Function(_) => "function".to_string(),
+            Object::String(_) => "string".to_string(),
+            Object::BuiltIn(_) => "function".to_string(),
         }
     }
 }
