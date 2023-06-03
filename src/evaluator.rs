@@ -445,4 +445,81 @@ mod tests {
 
         test_vs_code(pairs);
     }
+
+    mod errors {
+
+        use std::vec;
+
+        use super::*;
+
+        #[test]
+        fn type_mismatch() {
+            let pairs = vec![(
+                "5 + true;",
+                Err(EvalError::TypeMismatch(TypeMismatch::Infix(
+                    InfixMismatch {
+                        left: Object::Integer(5),
+                        operator: InfixOperator::Plus,
+                        right: Object::Boolean(true),
+                    },
+                ))),
+            )];
+
+            test_vs_code(pairs);
+        }
+
+        #[test]
+        fn unknown_prefix_operator() {
+            let pairs = vec![(
+                "-true;",
+                Err(EvalError::TypeMismatch(TypeMismatch::Prefix(
+                    PrefixMismatch {
+                        operator: PrefixOperator::Minus,
+                        right: Object::Boolean(true),
+                    },
+                ))),
+            )];
+
+            test_vs_code(pairs);
+        }
+
+        #[test]
+        fn unknown_infix_operator() {
+            let pairs = vec![(
+                "true + false;",
+                Err(EvalError::TypeMismatch(TypeMismatch::Infix(
+                    InfixMismatch {
+                        left: Object::Boolean(true),
+                        operator: InfixOperator::Plus,
+                        right: Object::Boolean(false),
+                    },
+                ))),
+            )];
+
+            test_vs_code(pairs);
+        }
+
+        #[test]
+        fn nested_error() {
+            let pairs = vec![(
+                "
+                if (10 > 1) {
+                  if (10 > 1) {
+                    return true + false;
+                  }
+                    return 1;
+                  }
+                ",
+                Err(EvalError::TypeMismatch(TypeMismatch::Infix(
+                    InfixMismatch {
+                        left: Object::Boolean(true),
+                        operator: InfixOperator::Plus,
+                        right: Object::Boolean(false),
+                    },
+                ))),
+            )];
+
+            test_vs_code(pairs);
+        }
+    }
 }
