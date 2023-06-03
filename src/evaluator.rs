@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 use crate::ast::*;
+use crate::environment::Environment;
 use crate::object::Object;
 
 #[derive(Debug, PartialEq)]
@@ -54,30 +55,31 @@ impl Display for EvalError {
 }
 
 pub trait Node {
-    fn eval(&self) -> Result<Object, EvalError>;
+    fn eval(&self, env: &mut Environment) -> Result<Object, EvalError>;
 }
 
 impl Node for Statement {
-    fn eval(&self) -> Result<Object, EvalError> {
+    fn eval(&self, env: &mut Environment) -> Result<Object, EvalError> {
         match self {
-            Statement::Let(let_statement) => let_statement.eval(),
-            Statement::Return(return_statement) => return_statement.eval(),
-            Statement::Expression(expression_statement) => expression_statement.eval(),
+            Statement::Let(let_statement) => let_statement.eval(env),
+            Statement::Return(return_statement) => return_statement.eval(env),
+            Statement::Expression(expression_statement) => expression_statement.eval(env),
         }
     }
 }
 
 impl Node for LetStatement {
-    fn eval(&self) -> Result<Object, EvalError> {
-        let _value = self.value.eval()?;
+    fn eval(&self, env: &mut Environment) -> Result<Object, EvalError> {
+        let value = self.value.eval(env)?;
+        env.set(self.name.value.clone(), value);
         Ok(Object::None)
     }
 }
 
 impl Node for ReturnStatement {
-    fn eval(&self) -> Result<Object, EvalError> {
+    fn eval(&self, env: &mut Environment) -> Result<Object, EvalError> {
         let value = match self.return_value {
-            Some(ref return_value) => return_value.eval()?,
+            Some(ref return_value) => return_value.eval(env)?,
             None => Object::None,
         };
         Ok(Object::ReturnValue(Box::new(value)))
@@ -85,11 +87,11 @@ impl Node for ReturnStatement {
 }
 
 impl Node for ExpressionStatement {
-    fn eval(&self) -> Result<Object, EvalError> {
+    fn eval(&self, env: &mut Environment) -> Result<Object, EvalError> {
         Ok(match self {
-            ExpressionStatement::NonTerminating(expression) => expression.eval()?,
+            ExpressionStatement::NonTerminating(expression) => expression.eval(env)?,
             ExpressionStatement::Terminating(expression) => {
-                expression.eval()?;
+                expression.eval(env)?;
                 Object::None
             }
         })
@@ -97,11 +99,11 @@ impl Node for ExpressionStatement {
 }
 
 impl Node for BlockExpression {
-    fn eval(&self) -> Result<Object, EvalError> {
+    fn eval(&self, env: &mut Environment) -> Result<Object, EvalError> {
         let mut result = Object::None;
 
         for statement in self.statements.iter() {
-            result = statement.eval()?;
+            result = statement.eval(env)?;
 
             match result {
                 Object::ReturnValue(value) => return Ok(Object::ReturnValue(value)),
@@ -114,25 +116,34 @@ impl Node for BlockExpression {
 }
 
 impl Node for Expression {
-    fn eval(&self) -> Result<Object, EvalError> {
+    fn eval(&self, env: &mut Environment) -> Result<Object, EvalError> {
         match self {
             Expression::Boolean(boolean_literal) => Ok(Object::Boolean(boolean_literal.value)),
             Expression::Int(integer_literal) => Ok(Object::Integer(integer_literal.value)),
-            Expression::Identifier(_identifier_literal) => unimplemented!("Identifier"),
-            Expression::Prefix(prefix_expression) => prefix_expression.eval(),
-            Expression::Infix(infix_expression) => infix_expression.eval(),
-            Expression::If(if_expression) => if_expression.eval(),
+            Expression::Identifier(identifier_literal) => identifier_literal.eval(env),
+            Expression::Prefix(prefix_expression) => prefix_expression.eval(env),
+            Expression::Infix(infix_expression) => infix_expression.eval(env),
+            Expression::If(if_expression) => if_expression.eval(env),
             Expression::Function(_function_literal) => unimplemented!("Function"),
             Expression::Call(_call_expression) => unimplemented!("Call"),
-            Expression::Block(block_expression) => block_expression.eval(),
+            Expression::Block(block_expression) => block_expression.eval(env),
             Expression::NoneLiteral => Ok(Object::None),
         }
     }
 }
 
+impl Node for IdentifierLiteral {
+    fn eval(&self, env: &mut Environment) -> Result<Object, EvalError> {
+        match env.get(&self.value) {
+            Some(value) => Ok(value.clone()),
+            None => Err(EvalError::UnknownIdentifier(self.value.clone())),
+        }
+    }
+}
+
 impl Node for PrefixExpression {
-    fn eval(&self) -> Result<Object, EvalError> {
-        let right = self.right.eval()?;
+    fn eval(&self, env: &mut Environment) -> Result<Object, EvalError> {
+        let right = self.right.eval(env)?;
 
         match self.operator {
             PrefixOperator::Bang => Ok(Object::Boolean(!right.to_bool())),
@@ -150,9 +161,9 @@ impl Node for PrefixExpression {
 }
 
 impl Node for InfixExpression {
-    fn eval(&self) -> Result<Object, EvalError> {
-        let left = self.left.eval()?;
-        let right = self.right.eval()?;
+    fn eval(&self, env: &mut Environment) -> Result<Object, EvalError> {
+        let left = self.left.eval(env)?;
+        let right = self.right.eval(env)?;
 
         match (left.clone(), right.clone()) {
             (Object::Integer(l_val), Object::Integer(r_val)) => match self.operator {
@@ -263,14 +274,14 @@ impl Node for InfixExpression {
 }
 
 impl Node for IfExpression {
-    fn eval(&self) -> Result<Object, EvalError> {
-        let condition = self.condition.eval()?;
+    fn eval(&self, env: &mut Environment) -> Result<Object, EvalError> {
+        let condition = self.condition.eval(env)?;
 
         if condition.to_bool() {
-            self.consequence.eval()
+            self.consequence.eval(env)
         } else {
             match &self.alternative {
-                Some(alternative) => alternative.eval(),
+                Some(alternative) => alternative.eval(env),
                 None => Ok(Object::None),
             }
         }
@@ -278,11 +289,11 @@ impl Node for IfExpression {
 }
 
 impl Node for Program {
-    fn eval(&self) -> Result<Object, EvalError> {
+    fn eval(&self, env: &mut Environment) -> Result<Object, EvalError> {
         let mut result = Object::None;
 
         for statement in self.statements.iter() {
-            result = statement.eval()?;
+            result = statement.eval(env)?;
 
             match result {
                 Object::ReturnValue(value) => return Ok(*value),
@@ -311,7 +322,8 @@ mod tests {
             }
             eprintln!();
         }
-        return program.eval();
+        let ref mut env = Environment::new();
+        return program.eval(env);
     }
 
     fn test_vs_expectation(input: &str, expected: Result<Object, EvalError>) {
@@ -446,6 +458,20 @@ mod tests {
         test_vs_code(pairs);
     }
 
+    #[test]
+    fn let_statements() {
+        let pairs = vec![
+            ("let a = 4; a", Ok(Object::Integer(4))),
+            ("let a = 5 * 5; a", Ok(Object::Integer(25))),
+            ("let a = 3; let b = a; b", Ok(Object::Integer(3))),
+            (
+                "let a = 5; let b = a; let c = a + b + 5; c",
+                Ok(Object::Integer(15)),
+            ),
+        ];
+        test_vs_code(pairs);
+    }
+
     mod errors {
 
         use std::vec;
@@ -517,6 +543,16 @@ mod tests {
                         right: Object::Boolean(false),
                     },
                 ))),
+            )];
+
+            test_vs_code(pairs);
+        }
+
+        #[test]
+        fn unknown_identifier() {
+            let pairs = vec![(
+                "foobar;",
+                Err(EvalError::UnknownIdentifier("foobar".to_string())),
             )];
 
             test_vs_code(pairs);

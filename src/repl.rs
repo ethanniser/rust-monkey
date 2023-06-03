@@ -1,3 +1,4 @@
+use crate::environment::Environment;
 use crate::parser::Parser;
 use crate::{evaluator::Node, lexer::Lexer};
 use std::io::{self, BufRead, Write};
@@ -14,6 +15,7 @@ const MONKEY_FACE: &str = r#"         .-"-.
 
 pub fn start<R: BufRead, W: Write>(input: R, mut output: W) -> io::Result<()> {
     let mut lines = input.lines();
+    let ref mut env = Environment::new();
 
     loop {
         write!(output, "{PROMPT}")?;
@@ -43,7 +45,7 @@ pub fn start<R: BufRead, W: Write>(input: R, mut output: W) -> io::Result<()> {
 
         writeln!(output, "<temp> parser output{:?}", program.statements)?;
 
-        let evaluated = match program.eval() {
+        let evaluated = match program.eval(env) {
             Ok(evaluated) => evaluated,
             Err(e) => {
                 writeln!(output, "Woops! We ran into some monkey business here!")?;
