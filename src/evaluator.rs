@@ -1,4 +1,3 @@
-use std::borrow::Borrow;
 use std::fmt::Display;
 use std::rc::Rc;
 
@@ -23,7 +22,13 @@ pub struct InfixMismatch {
 pub enum TypeMismatch {
     Prefix(PrefixMismatch),
     Infix(InfixMismatch),
-    Index(Rc<Object>),
+    Index(IndexMismatch),
+}
+
+#[derive(Debug, PartialEq)]
+pub struct IndexMismatch {
+    pub left: Rc<Object>,
+    pub index: Rc<Object>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -34,7 +39,6 @@ pub enum EvalError {
     ArgumentMismatch { expected: usize, got: usize },
     BuiltInFunction(BuiltInFunctionError),
     IndexOutOfBounds { index: isize, length: isize },
-    IndexOnNonArray(Rc<Object>),
 }
 
 impl Display for EvalError {
@@ -57,11 +61,12 @@ impl Display for EvalError {
                     infix_mismatch.left.to_type(),
                     infix_mismatch.right.to_type()
                 ),
-                TypeMismatch::Index(object) => {
+                TypeMismatch::Index(IndexMismatch { left, index }) => {
                     write!(
                         f,
-                        "Type Mismatch: Tried to index non-array object: {}",
-                        object
+                        "Type Mismatch: Tried to index {} with type {}",
+                        left.to_type(),
+                        index.to_type()
                     )
                 }
             },
@@ -77,9 +82,6 @@ impl Display for EvalError {
                 "Index out of bounds: index {} is out of bounds for array of length {}",
                 index, length
             ),
-            EvalError::IndexOnNonArray(object) => {
-                write!(f, "Tried to index non-array object: {}", object)
-            }
         }
     }
 }
@@ -184,37 +186,65 @@ impl Node for Expression {
 
 impl Node for IndexExpression {
     fn eval(&self, env: &Env) -> Result<Rc<Object>, EvalError> {
-        let array = match self.left.eval(env)?.borrow() {
-            Object::Array(array) => array,
-            other => return Err(EvalError::IndexOnNonArray(Rc::new(*other))),
-        };
+        let array = (*self.left.eval(env)?).clone();
+        let index = (*self.index.eval(env)?).clone();
 
-        let index = match *self.index.eval(env)?.borrow() {
-            Object::Integer(index) => index,
-            other => return Err(EvalError::TypeMismatch(TypeMismatch::Index(Rc::new(other)))),
-        };
-
-        let array_length = array.len() as isize;
-
-        if index > 0 {
-            if index >= array_length {
-                Err(EvalError::IndexOutOfBounds {
-                    index,
-                    length: array_length,
-                })
-            } else {
-                Ok(Rc::clone(&array[index as usize]))
-            }
-        } else {
-            if index >= array_length + 1 {
-                Err(EvalError::IndexOutOfBounds {
-                    index,
-                    length: array_length,
-                })
-            } else {
-                Ok(Rc::clone(&array[(array_length + index) as usize]))
-            }
+        match (array, index) {
+            (Object::Array(array), Object::Integer(index)) => index_array(array, index),
+            (Object::String(string), Object::Integer(index)) => index_string(string, index),
+            (array, index) => Err(EvalError::TypeMismatch(TypeMismatch::Index(
+                IndexMismatch {
+                    left: Rc::new(array),
+                    index: Rc::new(index),
+                },
+            ))),
         }
+    }
+}
+
+fn index_string(string: String, index: isize) -> Result<Rc<Object>, EvalError> {
+    let string_length = string.len() as isize;
+
+    if index >= 0 {
+        string
+            .chars()
+            .nth(index as usize)
+            .ok_or(EvalError::IndexOutOfBounds {
+                index,
+                length: string_length,
+            })
+            .map(|v| Rc::new(Object::String(v.to_string())))
+    } else {
+        string
+            .chars()
+            .nth((string_length + index) as usize)
+            .ok_or(EvalError::IndexOutOfBounds {
+                index,
+                length: string_length,
+            })
+            .map(|v| Rc::new(Object::String(v.to_string())))
+    }
+}
+
+fn index_array(array: Vec<Rc<Object>>, index: isize) -> Result<Rc<Object>, EvalError> {
+    let array_length = array.len() as isize;
+
+    if index >= 0 {
+        array
+            .get(index as usize)
+            .ok_or(EvalError::IndexOutOfBounds {
+                index,
+                length: array_length,
+            })
+            .map(|v| Rc::clone(v))
+    } else {
+        array
+            .get((array_length + index) as usize)
+            .ok_or(EvalError::IndexOutOfBounds {
+                index,
+                length: array_length,
+            })
+            .map(|v| Rc::clone(v))
     }
 }
 
@@ -232,11 +262,12 @@ impl Node for ArrayLiteral {
 impl Node for CallExpression {
     fn eval(&self, env: &Env) -> Result<Rc<Object>, EvalError> {
         let function = match &self.function {
-            CallableExpression::Identifier(identifier) => match env.borrow().get(&identifier.value)
-            {
-                Some(object) => object,
-                None => return Err(EvalError::UnknownIdentifier(identifier.value.clone())),
-            },
+            CallableExpression::Identifier(identifier) => {
+                match env.borrow_mut().get(&identifier.value) {
+                    Some(object) => object,
+                    None => return Err(EvalError::UnknownIdentifier(identifier.value.clone())),
+                }
+            }
             CallableExpression::Function(function) => function.eval(env)?,
         };
 
@@ -289,7 +320,7 @@ impl Node for FunctionLiteral {
 
 impl Node for IdentifierLiteral {
     fn eval(&self, env: &Env) -> Result<Rc<Object>, EvalError> {
-        match env.borrow().get(&self.value) {
+        match env.borrow_mut().get(&self.value) {
             Some(value) => Ok(value.clone()),
             None => Err(EvalError::UnknownIdentifier(self.value.clone())),
         }
@@ -784,6 +815,34 @@ mod tests {
         test_vs_code(pairs);
     }
 
+    #[test]
+    fn index_string() {
+        let pairs = vec![
+            (r#""abc"[0]"#, Ok(Object::String("a".to_string()))),
+            (r#""abc"[1]"#, Ok(Object::String("b".to_string()))),
+            (r#""abc"[2]"#, Ok(Object::String("c".to_string()))),
+            (
+                r#""abc"[3]"#,
+                Err(EvalError::IndexOutOfBounds {
+                    index: 3,
+                    length: 3,
+                }),
+            ),
+            (r#""abc"[-1]"#, Ok(Object::String("c".to_string()))),
+            (r#""abc"[-2]"#, Ok(Object::String("b".to_string()))),
+            (r#""abc"[-3]"#, Ok(Object::String("a".to_string()))),
+            (
+                r#""abc"[-4]"#,
+                Err(EvalError::IndexOutOfBounds {
+                    index: -4,
+                    length: 3,
+                }),
+            ),
+        ];
+
+        test_vs_code(pairs);
+    }
+
     mod errors {
 
         use std::vec;
@@ -894,6 +953,21 @@ mod tests {
             )];
             test_vs_code(pairs);
         }
+
+        #[test]
+        fn index_invalid_type() {
+            let pairs = vec![(
+                r#"43[0]"#,
+                Err(EvalError::TypeMismatch(TypeMismatch::Index(
+                    IndexMismatch {
+                        index: Rc::new(Object::Integer(0)),
+                        left: Rc::new(Object::Integer(43)),
+                    },
+                ))),
+            )];
+
+            test_vs_code(pairs);
+        }
     }
 }
 
@@ -988,7 +1062,7 @@ pub mod built_in_functions {
     }
 
     mod type_signatures {
-        pub const LEN: &str = "len(x: string) -> integer";
+        pub const LEN: &str = "len(x: string | array) -> integer";
     }
 
     impl BuiltIns {
@@ -1024,9 +1098,13 @@ pub mod built_in_functions {
 
         match &*args[0] {
             Object::String(s) => Ok(Rc::new(Object::Integer(s.len() as isize))),
+            Object::Array(a) => Ok(Rc::new(Object::Integer(a.len() as isize))),
             _ => Err(BuiltInFunctionError {
                 error: BIFInnerError::WrongArgumentType {
-                    expected: ObjectExpectation::One(Rc::new(Object::String("".to_string()))),
+                    expected: ObjectExpectation::Many(vec![
+                        Rc::new(Object::String("".to_string())),
+                        Rc::new(Object::Array(vec![])),
+                    ]),
                     got: args[0].clone(),
                 },
                 function: BuiltInFunction {
@@ -1052,22 +1130,6 @@ pub mod built_in_functions {
                 (r#"len("four")"#, Ok(Object::Integer(4))),
                 (r#"len("hello world")"#, Ok(Object::Integer(11))),
                 (
-                    "len(1)",
-                    Err(EvalError::BuiltInFunction(BuiltInFunctionError {
-                        error: BIFInnerError::WrongArgumentType {
-                            expected: ObjectExpectation::One(Rc::new(Object::String(
-                                "".to_string(),
-                            ))),
-                            got: Rc::new(Object::Integer(1)),
-                        },
-                        function: BuiltInFunction {
-                            function: len,
-                            type_signature: type_signatures::LEN,
-                        },
-                        message: None,
-                    })),
-                ),
-                (
                     r#"len("one", "two")"#,
                     Err(EvalError::BuiltInFunction(BuiltInFunctionError {
                         error: BIFInnerError::WrongNumberOfArguments {
@@ -1085,9 +1147,10 @@ pub mod built_in_functions {
                     "len(5)",
                     Err(EvalError::BuiltInFunction(BuiltInFunctionError {
                         error: BIFInnerError::WrongArgumentType {
-                            expected: ObjectExpectation::One(Rc::new(Object::String(
-                                "".to_string(),
-                            ))),
+                            expected: ObjectExpectation::Many(vec![
+                                Rc::new(Object::String("".to_string())),
+                                Rc::new(Object::Array(vec![])),
+                            ]),
                             got: Rc::new(Object::Integer(5)),
                         },
                         function: BuiltInFunction {
@@ -1097,6 +1160,8 @@ pub mod built_in_functions {
                         message: None,
                     })),
                 ),
+                ("len([])", Ok(Object::Integer(0))),
+                ("len([1, 2, 3])", Ok(Object::Integer(3))),
             ];
 
             test_vs_code(pairs);
