@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::fmt::Display;
 use std::rc::Rc;
 
@@ -22,6 +23,7 @@ pub struct InfixMismatch {
 pub enum TypeMismatch {
     Prefix(PrefixMismatch),
     Infix(InfixMismatch),
+    Index(Rc<Object>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -31,6 +33,8 @@ pub enum EvalError {
     CallOnNonFunction(Rc<Object>),
     ArgumentMismatch { expected: usize, got: usize },
     BuiltInFunction(BuiltInFunctionError),
+    IndexOutOfBounds { index: isize, length: isize },
+    IndexOnNonArray(Rc<Object>),
 }
 
 impl Display for EvalError {
@@ -53,6 +57,13 @@ impl Display for EvalError {
                     infix_mismatch.left.to_type(),
                     infix_mismatch.right.to_type()
                 ),
+                TypeMismatch::Index(object) => {
+                    write!(
+                        f,
+                        "Type Mismatch: Tried to index non-array object: {}",
+                        object
+                    )
+                }
             },
             EvalError::CallOnNonFunction(object) => {
                 write!(f, "Tried to call non-function object: {}", object)
@@ -61,6 +72,14 @@ impl Display for EvalError {
                 write!(f, "Expected {} arguments, got {}", expected, got)
             }
             EvalError::BuiltInFunction(bif_error) => write!(f, "{}", bif_error),
+            EvalError::IndexOutOfBounds { index, length } => write!(
+                f,
+                "Index out of bounds: index {} is out of bounds for array of length {}",
+                index, length
+            ),
+            EvalError::IndexOnNonArray(object) => {
+                write!(f, "Tried to index non-array object: {}", object)
+            }
         }
     }
 }
@@ -165,13 +184,48 @@ impl Node for Expression {
 
 impl Node for IndexExpression {
     fn eval(&self, env: &Env) -> Result<Rc<Object>, EvalError> {
-        todo!();
+        let array = match self.left.eval(env)?.borrow() {
+            Object::Array(array) => array,
+            other => return Err(EvalError::IndexOnNonArray(Rc::new(*other))),
+        };
+
+        let index = match *self.index.eval(env)?.borrow() {
+            Object::Integer(index) => index,
+            other => return Err(EvalError::TypeMismatch(TypeMismatch::Index(Rc::new(other)))),
+        };
+
+        let array_length = array.len() as isize;
+
+        if index > 0 {
+            if index >= array_length {
+                Err(EvalError::IndexOutOfBounds {
+                    index,
+                    length: array_length,
+                })
+            } else {
+                Ok(Rc::clone(&array[index as usize]))
+            }
+        } else {
+            if index >= array_length + 1 {
+                Err(EvalError::IndexOutOfBounds {
+                    index,
+                    length: array_length,
+                })
+            } else {
+                Ok(Rc::clone(&array[(array_length + index) as usize]))
+            }
+        }
     }
 }
 
 impl Node for ArrayLiteral {
     fn eval(&self, env: &Env) -> Result<Rc<Object>, EvalError> {
-        todo!();
+        let elements = self
+            .elements
+            .iter()
+            .map(|e| e.eval(env))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Rc::new(Object::Array(elements)))
     }
 }
 
@@ -669,6 +723,62 @@ mod tests {
             ("let a = 5; a = 10; a", Ok(Object::Integer(10))),
             ("let a = 5; a = 10 * 2; a", Ok(Object::Integer(20))),
             ("let a = 5; let b = a; a = 10; b", Ok(Object::Integer(5))),
+        ];
+
+        test_vs_code(pairs);
+    }
+
+    #[test]
+    fn arary_literals() {
+        let pairs = vec![(
+            "[1, 2 * 2, 3 + 3]",
+            Ok(Object::Array(vec![
+                Rc::new(Object::Integer(1)),
+                Rc::new(Object::Integer(4)),
+                Rc::new(Object::Integer(6)),
+            ])),
+        )];
+
+        test_vs_code(pairs);
+    }
+
+    #[test]
+    fn index_expressions() {
+        let pairs = vec![
+            ("[1, 2, 3][0]", Ok(Object::Integer(1))),
+            ("[1, 2, 3][1]", Ok(Object::Integer(2))),
+            ("[1, 2, 3][2]", Ok(Object::Integer(3))),
+            ("[1, 2, 3][-1]", Ok(Object::Integer(3))),
+            ("[1, 2, 3][-2]", Ok(Object::Integer(2))),
+            ("[1, 2, 3][-3]", Ok(Object::Integer(1))),
+            ("let i = 0; [1][i]", Ok(Object::Integer(1))),
+            ("[1, 2, 3][1 + 1]", Ok(Object::Integer(3))),
+            (
+                "let myArray = [1, 2, 3]; myArray[2]",
+                Ok(Object::Integer(3)),
+            ),
+            (
+                "let myArray = [1, 2, 3]; myArray[0] + myArray[1] + myArray[2]",
+                Ok(Object::Integer(6)),
+            ),
+            (
+                "let myArray = [1, 2, 3]; let i = myArray[0]; myArray[i]",
+                Ok(Object::Integer(2)),
+            ),
+            (
+                "[1, 2, 3][3]",
+                Err(EvalError::IndexOutOfBounds {
+                    index: 3,
+                    length: 3,
+                }),
+            ),
+            (
+                "[1, 2, 3][-4]",
+                Err(EvalError::IndexOutOfBounds {
+                    index: -4,
+                    length: 3,
+                }),
+            ),
         ];
 
         test_vs_code(pairs);

@@ -15,6 +15,7 @@ pub enum Object {
     Function(Function),
     String(String),
     BuiltIn(BuiltInFunction),
+    Array(Vec<Rc<Object>>),
 }
 
 impl Object {
@@ -27,6 +28,7 @@ impl Object {
             Object::Function(_) => true,
             Object::String(string) => !string.is_empty(),
             Object::BuiltIn(_) => true,
+            Object::Array(_) => true,
         }
     }
 
@@ -39,6 +41,7 @@ impl Object {
             Object::Function(_) => "function".to_string(),
             Object::String(_) => "string".to_string(),
             Object::BuiltIn(_) => "function".to_string(),
+            Object::Array(_) => "array".to_string(),
         }
     }
 }
@@ -60,6 +63,14 @@ impl Display for Object {
                 }
             ),
             Object::BuiltIn(built_in) => write!(f, "BUILT IN FUNCTION: {}", built_in),
+            Object::Array(array) => {
+                let items = array
+                    .iter()
+                    .map(|element| element.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                write!(f, "[{items}]")
+            }
         }
     }
 }
