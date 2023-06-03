@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::fmt::Display;
 use std::rc::Rc;
 
@@ -169,14 +168,14 @@ impl Node for CallExpression {
             other => return Err(EvalError::CallOnNonFunction(Rc::new(other.clone()))),
         };
 
-        let mut env = Environment::new_enclosed(&env);
+        let env = Environment::new_enclosed(&env);
 
         parameters
             .iter()
             .zip(args.iter())
-            .for_each(|(param, arg)| env.set(param.value.clone(), Rc::clone(arg)));
+            .for_each(|(param, arg)| env.borrow_mut().set(param.value.clone(), Rc::clone(arg)));
 
-        body.eval(&Rc::new(RefCell::new(env)))
+        body.eval(&env)
     }
 }
 
@@ -381,7 +380,7 @@ mod tests {
             }
             eprintln!();
         }
-        let ref env = Rc::new(RefCell::new(Environment::new()));
+        let ref env = Environment::new();
         return program.eval(env);
     }
 
@@ -553,7 +552,7 @@ mod tests {
                         }),
                     ))],
                 },
-                env: Rc::new(RefCell::new(Environment::new())),
+                env: Environment::new(),
             })),
         )];
         test_vs_code(pairs);
