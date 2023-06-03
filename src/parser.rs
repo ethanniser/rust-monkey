@@ -16,6 +16,7 @@ impl Token {
             Token::Slash => Precedence::Product,
             Token::Asterisk => Precedence::Product,
             Token::LParen => Precedence::Call,
+            Token::LBracket => Precedence::Index,
             _ => Precedence::Lowest,
         }
     }
@@ -30,6 +31,7 @@ enum Precedence {
     Product,
     Prefix,
     Call,
+    Index,
 }
 
 type PrefixParseFn = fn(&mut Parser) -> Result<Expression, ParserError>;
@@ -147,6 +149,7 @@ impl Parser {
         parser.register_infix(Token::Lt, Parser::parse_infix_expression);
         parser.register_infix(Token::Gt, Parser::parse_infix_expression);
         parser.register_infix(Token::LParen, Parser::parse_call_expression);
+        parser.register_infix(Token::LBracket, Parser::parse_index_expression);
 
         parser.next_token();
         parser.next_token();
@@ -640,6 +643,19 @@ impl Parser {
 
         Ok(arguments)
     }
+
+    fn parse_index_expression(&mut self, left: Expression) -> Result<Expression, ParserError> {
+        self.next_token();
+
+        let index = self.parse_expression(Precedence::Lowest)?;
+
+        self.expect_peek(Token::RBracket)?;
+
+        Ok(Expression::Index(IndexExpression {
+            left: Box::new(left),
+            index: Box::new(index),
+        }))
+    }
 }
 
 #[cfg(test)]
@@ -652,7 +668,9 @@ mod tests {
 
         let program = parser.parse_program();
 
-        eprintln!("{:?}", parser.errors);
+        if !parser.errors.is_empty() {
+            eprintln!("{:?}", parser.errors);
+        }
         assert!(parser.errors.is_empty(), "parser.errors is not empty");
 
         let num_statements = program.statements.len();
@@ -685,8 +703,12 @@ mod tests {
             let input_program = input_parser.parse_program();
             let expectation_program = expectation_parser.parse_program();
 
-            eprintln!("{:?}", input_parser.errors);
-            eprintln!("{:?}", expectation_parser.errors);
+            if !input_parser.errors.is_empty() {
+                eprintln!("{:?}", input_parser.errors);
+            }
+            if !expectation_parser.errors.is_empty() {
+                eprintln!("{:?}", expectation_parser.errors);
+            }
             assert!(
                 input_parser.errors.is_empty(),
                 "input_parser.errors is not empty"
@@ -1122,6 +1144,14 @@ mod tests {
                 "add(a + b + c * d / f + g)",
                 "add((((a + b) + ((c * d) / f)) + g))",
             ),
+            (
+                "a * [1, 2, 3, 4][b * c] * d",
+                "((a * ([1, 2, 3, 4][(b * c)])) * d)",
+            ),
+            (
+                "add(a * b[2], b[1], 2 * [1, 2][1])",
+                "add((a * (b[2])), (b[1]), (2 * ([1, 2][1])))",
+            ),
         ];
 
         test_vs_code(pairs);
@@ -1210,6 +1240,28 @@ mod tests {
                             right: Box::new(Expression::Int(IntegerLiteral { value: 3 })),
                         }),
                     ],
+                }),
+            ))],
+        };
+        test_vs_expectation(input, expectation);
+    }
+
+    #[test]
+    fn index_expression() {
+        let input = "
+        myArray[1 + 1]
+        ";
+        let expectation = Program {
+            statements: vec![Statement::Expression(ExpressionStatement::NonTerminating(
+                Expression::Index(IndexExpression {
+                    left: Box::new(Expression::Identifier(IdentifierLiteral {
+                        value: "myArray".to_string(),
+                    })),
+                    index: Box::new(Expression::Infix(InfixExpression {
+                        left: Box::new(Expression::Int(IntegerLiteral { value: 1 })),
+                        operator: InfixOperator::Plus,
+                        right: Box::new(Expression::Int(IntegerLiteral { value: 1 })),
+                    })),
                 }),
             ))],
         };
@@ -1463,6 +1515,16 @@ mod tests {
                     }],
                 ),
             ];
+
+            test_vs_error(pairs);
+        }
+
+        #[test]
+        fn unterminated_index_expression() {
+            let pairs = vec![(
+                "foo[",
+                vec![ParserError::NoPrefixParseFnFound { token: Token::EOF }],
+            )];
 
             test_vs_error(pairs);
         }

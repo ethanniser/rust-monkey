@@ -158,7 +158,14 @@ impl Node for Expression {
             Expression::Block(block_expression) => block_expression.eval(env),
             Expression::NoneLiteral => Ok(Rc::new(Object::None)),
             Expression::Array(array_literal) => array_literal.eval(env),
+            Expression::Index(index_expression) => index_expression.eval(env),
         }
+    }
+}
+
+impl Node for IndexExpression {
+    fn eval(&self, env: &Env) -> Result<Rc<Object>, EvalError> {
+        todo!();
     }
 }
 

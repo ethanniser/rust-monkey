@@ -60,7 +60,14 @@ mod expression {
         Block(BlockExpression),
         Prefix(PrefixExpression),
         Infix(InfixExpression),
+        Index(IndexExpression),
         NoneLiteral,
+    }
+
+    #[derive(Debug, PartialEq, Clone)]
+    pub struct IndexExpression {
+        pub left: Box<Expression>,
+        pub index: Box<Expression>,
     }
 
     #[derive(Debug, PartialEq, Clone)]
@@ -229,7 +236,14 @@ mod expression {
                 Expression::Infix(infix_expression) => write!(f, "{}", infix_expression),
                 Expression::NoneLiteral => write!(f, "none"),
                 Expression::Array(array) => write!(f, "{}", array),
+                Expression::Index(index) => write!(f, "{}", index),
             }
+        }
+    }
+
+    impl Display for IndexExpression {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}[{}]", self.left, self.index)
         }
     }
 
