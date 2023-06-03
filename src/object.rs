@@ -5,7 +5,7 @@ use crate::{
     environment::Env,
 };
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Object {
     None,
     Integer(isize),

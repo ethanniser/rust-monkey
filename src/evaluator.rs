@@ -29,6 +29,7 @@ pub enum TypeMismatch {
 pub enum EvalError {
     UnknownIdentifier(String),
     TypeMismatch(TypeMismatch),
+    CallOnNonFunction(Rc<Object>),
 }
 
 impl Display for EvalError {
@@ -52,6 +53,9 @@ impl Display for EvalError {
                     infix_mismatch.right.to_type()
                 ),
             },
+            EvalError::CallOnNonFunction(object) => {
+                write!(f, "Tried to call non-function object: {}", object)
+            }
         }
     }
 }
@@ -144,16 +148,10 @@ impl Node for CallExpression {
         let function = match &self.function {
             CallableExpression::Identifier(identifier) => match env.borrow().get(&identifier.value)
             {
-                Some(object) => match object.as_ref() {
-                    Object::Function(function) => function.clone(),
-                    _ => return Err(EvalError::UnknownIdentifier(identifier.value.clone())),
-                },
-                _ => return Err(EvalError::UnknownIdentifier(identifier.value.clone())),
+                Some(object) => object,
+                None => return Err(EvalError::UnknownIdentifier(identifier.value.clone())),
             },
-            CallableExpression::Function(function) => match function.eval(env)?.as_ref() {
-                Object::Function(function) => function.clone(),
-                _ => unreachable!("function literal should always evaluate to a function"),
-            },
+            CallableExpression::Function(function) => function.eval(env)?,
         };
 
         let args = self
@@ -166,7 +164,10 @@ impl Node for CallExpression {
             parameters,
             body,
             env,
-        } = function;
+        } = match function.as_ref() {
+            Object::Function(function) => function,
+            other => return Err(EvalError::CallOnNonFunction(Rc::new(other.clone()))),
+        };
 
         let mut env = Environment::new_enclosed(&env);
 
@@ -687,6 +688,17 @@ mod tests {
                 Err(EvalError::UnknownIdentifier("foobar".to_string())),
             )];
 
+            test_vs_code(pairs);
+        }
+
+        #[test]
+        fn uncallable_value() {
+            let pairs = vec![(
+                "let x = 5;
+                x()
+                ",
+                Err(EvalError::CallOnNonFunction(Rc::new(Object::Integer(5)))),
+            )];
             test_vs_code(pairs);
         }
     }
