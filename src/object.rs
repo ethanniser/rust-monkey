@@ -1,11 +1,17 @@
 use std::fmt::Display;
 
+use crate::{
+    ast::{BlockExpression, IdentifierLiteral},
+    environment::Environment,
+};
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Object {
     None,
     Integer(isize),
     Boolean(bool),
     ReturnValue(Box<Object>),
+    Function(Function),
 }
 
 impl Object {
@@ -15,6 +21,7 @@ impl Object {
             Object::Integer(integer) => *integer != 0,
             Object::Boolean(boolean) => *boolean,
             Object::ReturnValue(value) => value.to_bool(),
+            Object::Function(_) => true,
         }
     }
 
@@ -24,6 +31,7 @@ impl Object {
             Object::Integer(_) => "Integer".to_string(),
             Object::Boolean(_) => "Boolean".to_string(),
             Object::ReturnValue(value) => value.to_type(),
+            Object::Function(_) => "Function".to_string(),
         }
     }
 }
@@ -35,6 +43,24 @@ impl Display for Object {
             Object::Integer(integer) => write!(f, "{}", integer),
             Object::Boolean(boolean) => write!(f, "{}", boolean),
             Object::ReturnValue(value) => write!(f, "{}", value),
+            Object::Function(function) => write!(
+                f,
+                "function({}){:?}",
+                function
+                    .parameters
+                    .iter()
+                    .map(|literal| literal.value.clone())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                function.body
+            ),
         }
     }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct Function {
+    pub parameters: Vec<IdentifierLiteral>,
+    pub body: BlockExpression,
+    pub env: Environment,
 }

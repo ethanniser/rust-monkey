@@ -43,7 +43,7 @@ pub fn start<R: BufRead, W: Write>(input: R, mut output: W) -> io::Result<()> {
             }
         }
 
-        writeln!(output, "<temp> parser output{:?}", program.statements)?;
+        // writeln!(output, "<temp> parser output{:?}", program.statements)?;
 
         let evaluated = match program.eval(env) {
             Ok(evaluated) => evaluated,

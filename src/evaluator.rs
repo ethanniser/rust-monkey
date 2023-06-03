@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::ast::*;
 use crate::environment::Environment;
-use crate::object::Object;
+use crate::object::{Function, Object};
 
 #[derive(Debug, PartialEq)]
 pub struct PrefixMismatch {
@@ -124,11 +124,21 @@ impl Node for Expression {
             Expression::Prefix(prefix_expression) => prefix_expression.eval(env),
             Expression::Infix(infix_expression) => infix_expression.eval(env),
             Expression::If(if_expression) => if_expression.eval(env),
-            Expression::Function(_function_literal) => unimplemented!("Function"),
+            Expression::Function(function_literal) => function_literal.eval(env),
             Expression::Call(_call_expression) => unimplemented!("Call"),
             Expression::Block(block_expression) => block_expression.eval(env),
             Expression::NoneLiteral => Ok(Object::None),
         }
+    }
+}
+
+impl Node for FunctionLiteral {
+    fn eval(&self, env: &mut Environment) -> Result<Object, EvalError> {
+        Ok(Object::Function(Function {
+            parameters: self.parameters.clone(),
+            body: self.body.clone(),
+            env: env.clone(),
+        }))
     }
 }
 
@@ -309,6 +319,7 @@ impl Node for Program {
 mod tests {
     use super::*;
     use crate::lexer::Lexer;
+    use crate::object::Function;
     use crate::parser::Parser;
 
     fn test_eval(input: String) -> Result<Object, EvalError> {
@@ -469,6 +480,31 @@ mod tests {
                 Ok(Object::Integer(15)),
             ),
         ];
+        test_vs_code(pairs);
+    }
+
+    #[test]
+    fn function_object() {
+        let pairs = vec![(
+            "fn(x) { x + 2 }",
+            Ok(Object::Function(Function {
+                parameters: vec![IdentifierLiteral {
+                    value: "x".to_string(),
+                }],
+                body: BlockExpression {
+                    statements: vec![Statement::Expression(ExpressionStatement::NonTerminating(
+                        Expression::Infix(InfixExpression {
+                            left: Box::new(Expression::Identifier(IdentifierLiteral {
+                                value: "x".to_string(),
+                            })),
+                            operator: InfixOperator::Plus,
+                            right: Box::new(Expression::Int(IntegerLiteral { value: 2 })),
+                        }),
+                    ))],
+                },
+                env: Environment::new(),
+            })),
+        )];
         test_vs_code(pairs);
     }
 

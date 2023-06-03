@@ -9,25 +9,25 @@ mod statement {
 
     use super::*;
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub enum Statement {
         Let(LetStatement),
         Return(ReturnStatement),
         Expression(ExpressionStatement),
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub struct LetStatement {
         pub name: IdentifierLiteral,
         pub value: Expression,
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub struct ReturnStatement {
         pub return_value: Option<Expression>,
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub enum ExpressionStatement {
         Terminating(Expression),
         NonTerminating(Expression),
@@ -40,7 +40,7 @@ mod expression {
 
     use super::*;
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub enum Expression {
         Identifier(IdentifierLiteral),
         Int(IntegerLiteral),
@@ -54,65 +54,65 @@ mod expression {
         NoneLiteral,
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub struct IdentifierLiteral {
         pub value: String,
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub struct IntegerLiteral {
         pub value: isize,
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub struct BooleanLiteral {
         pub value: bool,
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub struct FunctionLiteral {
         pub parameters: Vec<IdentifierLiteral>,
         pub body: BlockExpression,
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub struct IfExpression {
         pub condition: Box<Expression>,
         pub consequence: BlockExpression,
         pub alternative: Option<BlockExpression>,
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub struct CallExpression {
         pub function: CallableExpression,
         pub arguments: Vec<Expression>,
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub enum CallableExpression {
         Identifier(IdentifierLiteral),
         Function(FunctionLiteral),
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub struct BlockExpression {
         pub statements: Vec<Statement>,
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub struct PrefixExpression {
         pub operator: PrefixOperator,
         pub right: Box<Expression>,
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub struct InfixExpression {
         pub left: Box<Expression>,
         pub operator: InfixOperator,
         pub right: Box<Expression>,
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub enum PrefixOperator {
         Bang,
         Minus,
