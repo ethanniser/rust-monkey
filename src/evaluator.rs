@@ -60,7 +60,7 @@ impl Display for EvalError {
             EvalError::ArgumentMismatch { expected, got } => {
                 write!(f, "Expected {} arguments, got {}", expected, got)
             }
-            EvalError::BuiltInFunction(_) => write!(f, "Error in built-in function"),
+            EvalError::BuiltInFunction(bif_error) => write!(f, "{}", bif_error),
         }
     }
 }
@@ -782,7 +782,70 @@ pub mod built_in_functions {
     pub type BuiltInFunctionType = fn(Vec<Rc<Object>>) -> Result<Rc<Object>, BuiltInFunctionError>;
 
     #[derive(Debug, PartialEq)]
-    pub struct BuiltInFunctionError;
+    pub struct BuiltInFunctionError {
+        pub function: BuiltInFunction,
+        pub error: BIFInnerError,
+        pub message: Option<String>,
+    }
+
+    impl Display for BuiltInFunctionError {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            let preface = format!("Error in built in function '{}': ", self.function);
+            let error = match &self.error {
+                BIFInnerError::WrongNumberOfArguments { expected, got } => format!(
+                    "Wrong number of arguments. Expected {}, got {}",
+                    expected, got
+                ),
+                BIFInnerError::WrongArgumentType { expected, got } => {
+                    format!(
+                        "Wrong argument type. Expected: {}. Got: {}",
+                        expected,
+                        got.to_type()
+                    )
+                }
+            };
+            let message = match self.message.clone() {
+                Some(message) => format!("\n{}", message),
+                None => "".to_string(),
+            };
+
+            write!(f, "{}{}{}", preface, error, message)
+        }
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub enum BIFInnerError {
+        WrongNumberOfArguments {
+            expected: usize,
+            got: usize,
+        },
+        WrongArgumentType {
+            expected: ObjectExpectation,
+            got: Rc<Object>,
+        },
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub enum ObjectExpectation {
+        One(Rc<Object>),
+        Many(Vec<Rc<Object>>),
+    }
+
+    impl Display for ObjectExpectation {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            match self {
+                ObjectExpectation::One(object) => write!(f, "{}", object.to_type()),
+                ObjectExpectation::Many(objects) => {
+                    let type_union = objects
+                        .iter()
+                        .map(|o| o.to_type())
+                        .collect::<Vec<_>>()
+                        .join(" | ");
+                    write!(f, "{}", type_union)
+                }
+            }
+        }
+    }
 
     #[derive(Debug, PartialEq, Clone)]
     pub struct BuiltInFunction {
@@ -800,13 +863,17 @@ pub mod built_in_functions {
         pub functions: Vec<(String, BuiltInFunction)>,
     }
 
+    mod type_signatures {
+        pub const LEN: &str = "len(x: string) -> integer";
+    }
+
     impl BuiltIns {
         pub fn new() -> Self {
             let functions = vec![(
                 "len".to_string(),
                 BuiltInFunction {
                     function: len,
-                    type_signature: "len(x: string) -> integer",
+                    type_signature: type_signatures::LEN,
                 },
             )];
 
@@ -818,12 +885,32 @@ pub mod built_in_functions {
 
     fn len(args: Vec<Rc<Object>>) -> Result<Rc<Object>, BuiltInFunctionError> {
         if args.len() != 1 {
-            return Err(BuiltInFunctionError);
+            return Err(BuiltInFunctionError {
+                error: BIFInnerError::WrongNumberOfArguments {
+                    expected: 1,
+                    got: args.len(),
+                },
+                function: BuiltInFunction {
+                    function: len,
+                    type_signature: type_signatures::LEN,
+                },
+                message: None,
+            });
         }
 
         match &*args[0] {
             Object::String(s) => Ok(Rc::new(Object::Integer(s.len() as isize))),
-            _ => Err(BuiltInFunctionError),
+            _ => Err(BuiltInFunctionError {
+                error: BIFInnerError::WrongArgumentType {
+                    expected: ObjectExpectation::One(Rc::new(Object::String("".to_string()))),
+                    got: args[0].clone(),
+                },
+                function: BuiltInFunction {
+                    function: len,
+                    type_signature: type_signatures::LEN,
+                },
+                message: None,
+            }),
         }
     }
 
@@ -842,11 +929,49 @@ pub mod built_in_functions {
                 (r#"len("hello world")"#, Ok(Object::Integer(11))),
                 (
                     "len(1)",
-                    Err(EvalError::BuiltInFunction(BuiltInFunctionError)),
+                    Err(EvalError::BuiltInFunction(BuiltInFunctionError {
+                        error: BIFInnerError::WrongArgumentType {
+                            expected: ObjectExpectation::One(Rc::new(Object::String(
+                                "".to_string(),
+                            ))),
+                            got: Rc::new(Object::Integer(1)),
+                        },
+                        function: BuiltInFunction {
+                            function: len,
+                            type_signature: type_signatures::LEN,
+                        },
+                        message: None,
+                    })),
                 ),
                 (
                     r#"len("one", "two")"#,
-                    Err(EvalError::BuiltInFunction(BuiltInFunctionError)),
+                    Err(EvalError::BuiltInFunction(BuiltInFunctionError {
+                        error: BIFInnerError::WrongNumberOfArguments {
+                            expected: 1,
+                            got: 2,
+                        },
+                        function: BuiltInFunction {
+                            function: len,
+                            type_signature: type_signatures::LEN,
+                        },
+                        message: None,
+                    })),
+                ),
+                (
+                    "len(5)",
+                    Err(EvalError::BuiltInFunction(BuiltInFunctionError {
+                        error: BIFInnerError::WrongArgumentType {
+                            expected: ObjectExpectation::One(Rc::new(Object::String(
+                                "".to_string(),
+                            ))),
+                            got: Rc::new(Object::Integer(5)),
+                        },
+                        function: BuiltInFunction {
+                            function: len,
+                            type_signature: type_signatures::LEN,
+                        },
+                        message: None,
+                    })),
                 ),
             ];
 
