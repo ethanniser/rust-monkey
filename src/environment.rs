@@ -2,10 +2,12 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::object::Object;
 
+pub type Env = Rc<RefCell<Environment>>;
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct Environment {
-    pub store: HashMap<String, Object>,
-    pub outer: Option<Rc<RefCell<Environment>>>,
+    pub store: HashMap<String, Rc<Object>>,
+    pub outer: Option<Env>,
 }
 
 impl Environment {
@@ -16,18 +18,27 @@ impl Environment {
         }
     }
 
-    pub fn new_enclosed(outer: Rc<RefCell<Environment>>) -> Self {
+    pub fn new_enclosed(outer: &Env) -> Self {
         Self {
             store: HashMap::new(),
-            outer: Some(outer),
+            outer: Some(Rc::clone(outer)),
         }
     }
 
-    pub fn get(&self, key: &str) -> Option<&Object> {
-        self.store.get(key)
+    pub fn get(&self, key: &str) -> Option<Rc<Object>> {
+        match self.store.get(key) {
+            Some(obj) => Some(Rc::clone(obj)),
+            None => {
+                if let Some(outer) = &self.outer {
+                    return outer.borrow().get(key);
+                } else {
+                    return None;
+                }
+            }
+        }
     }
 
-    pub fn set(&mut self, key: String, value: Object) -> Option<Object> {
-        self.store.insert(key, value)
+    pub fn set(&mut self, key: String, value: Rc<Object>) {
+        self.store.insert(key, value);
     }
 }

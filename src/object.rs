@@ -1,16 +1,16 @@
-use std::{cell::RefCell, fmt::Display, rc::Rc};
+use std::{fmt::Display, rc::Rc};
 
 use crate::{
     ast::{BlockExpression, FunctionLiteral, IdentifierLiteral},
-    environment::Environment,
+    environment::Env,
 };
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq)]
 pub enum Object {
     None,
     Integer(isize),
     Boolean(bool),
-    ReturnValue(Box<Object>),
+    ReturnValue(Box<Rc<Object>>),
     Function(Function),
 }
 
@@ -59,5 +59,5 @@ impl Display for Object {
 pub struct Function {
     pub parameters: Vec<IdentifierLiteral>,
     pub body: BlockExpression,
-    pub env: Rc<RefCell<Environment>>,
+    pub env: Env,
 }

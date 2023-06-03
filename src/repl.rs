@@ -1,7 +1,9 @@
 use crate::environment::Environment;
 use crate::parser::Parser;
 use crate::{evaluator::Node, lexer::Lexer};
+use std::cell::RefCell;
 use std::io::{self, BufRead, Write};
+use std::rc::Rc;
 
 const PROMPT: &str = ">> ";
 
@@ -15,7 +17,7 @@ const MONKEY_FACE: &str = r#"         .-"-.
 
 pub fn start<R: BufRead, W: Write>(input: R, mut output: W) -> io::Result<()> {
     let mut lines = input.lines();
-    let ref mut env = Environment::new();
+    let ref env = Rc::new(RefCell::new(Environment::new()));
 
     loop {
         write!(output, "{PROMPT}")?;
