@@ -1,4 +1,5 @@
 use crate::environment::Environment;
+use crate::object::Object;
 use crate::parser::Parser;
 use crate::{evaluator::Node, lexer::Lexer};
 use std::cell::RefCell;
@@ -57,7 +58,9 @@ pub fn start<R: BufRead, W: Write>(input: R, mut output: W) -> io::Result<()> {
                 continue;
             }
         };
-
+        if let Object::None = *evaluated {
+            continue;
+        }
         writeln!(output, "{}", evaluated)?
     }
 }
