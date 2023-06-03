@@ -14,6 +14,7 @@ mod statement {
         Let(LetStatement),
         Return(ReturnStatement),
         Expression(ExpressionStatement),
+        Assign(AssignStatement),
     }
 
     #[derive(Debug, PartialEq, Clone)]
@@ -31,6 +32,12 @@ mod statement {
     pub enum ExpressionStatement {
         Terminating(Expression),
         NonTerminating(Expression),
+    }
+
+    #[derive(Debug, PartialEq, Clone)]
+    pub struct AssignStatement {
+        pub name: IdentifierLiteral,
+        pub value: Expression,
     }
 }
 
@@ -188,6 +195,7 @@ mod expression {
                         None => "none".to_string(),
                     },
                     Statement::Let(_) => "none".to_string(),
+                    Statement::Assign(_) => "none".to_string(),
                 },
                 None => "none".to_string(),
             };

@@ -69,7 +69,17 @@ impl Node for Statement {
             Statement::Let(let_statement) => let_statement.eval(env),
             Statement::Return(return_statement) => return_statement.eval(env),
             Statement::Expression(expression_statement) => expression_statement.eval(env),
+            Statement::Assign(assign_statement) => assign_statement.eval(env),
         }
+    }
+}
+
+impl Node for AssignStatement {
+    fn eval(&self, env: &Env) -> Result<Rc<Object>, EvalError> {
+        let identifier = self.name.value.clone();
+        let value = self.value.eval(env)?;
+        env.borrow_mut().set(identifier, Rc::clone(&value));
+        Ok(Rc::new(Object::None))
     }
 }
 
@@ -617,6 +627,17 @@ mod tests {
                 r#""hello" + " " + "world""#,
                 Ok(Object::String("hello world".to_string())),
             ),
+        ];
+
+        test_vs_code(pairs);
+    }
+
+    #[test]
+    fn assignment() {
+        let pairs = vec![
+            ("let a = 5; a = 10; a", Ok(Object::Integer(10))),
+            ("let a = 5; a = 10 * 2; a", Ok(Object::Integer(20))),
+            ("let a = 5; let b = a; a = 10; b", Ok(Object::Integer(5))),
         ];
 
         test_vs_code(pairs);

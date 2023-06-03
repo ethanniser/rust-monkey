@@ -214,6 +214,9 @@ impl Parser {
         match self.cur_token.clone() {
             Token::Let => self.parse_let_statement(),
             Token::Return => self.parse_return_statement(),
+            Token::Identifier(_) if self.peek_token_is(Token::Assign) => {
+                self.parse_assign_statement()
+            }
             _ => self.parse_expression_statement(),
         }
     }
@@ -238,6 +241,28 @@ impl Parser {
         self.next_token();
 
         let statement = Statement::Let(LetStatement {
+            name,
+            value: self.parse_expression(Precedence::Lowest)?,
+        });
+
+        self.expect_peek(Token::Semicolon)?;
+
+        Ok(statement)
+    }
+
+    fn parse_assign_statement(&mut self) -> Result<Statement, ParserError> {
+        let name = match self.cur_token.clone() {
+            Token::Identifier(ref name) => IdentifierLiteral {
+                value: name.clone(),
+            },
+            _ => unreachable!("parse_assign_statement can only be called after an indentifier"),
+        };
+
+        self.expect_peek(Token::Assign)?;
+
+        self.next_token();
+
+        let statement = Statement::Assign(AssignStatement {
             name,
             value: self.parse_expression(Precedence::Lowest)?,
         });
@@ -1137,6 +1162,22 @@ mod tests {
                     }),
                 }),
             ],
+        };
+        test_vs_expectation(input, expectation);
+    }
+
+    #[test]
+    fn assign_statement() {
+        let input = "
+        x = 5;
+        ";
+        let expectation = Program {
+            statements: vec![Statement::Assign(AssignStatement {
+                name: IdentifierLiteral {
+                    value: "x".to_string(),
+                },
+                value: Expression::Int(IntegerLiteral { value: 5 }),
+            })],
         };
         test_vs_expectation(input, expectation);
     }
