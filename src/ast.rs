@@ -153,4 +153,110 @@ mod expression {
             }
         }
     }
+
+    impl Display for FunctionLiteral {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let parameters = self
+                .parameters
+                .iter()
+                .map(|literal| literal.value.clone())
+                .collect::<Vec<_>>()
+                .join(", ");
+
+            write!(f, "fn({parameters}) -> {}", self.body)
+        }
+    }
+
+    impl Display for BlockExpression {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let display = match self.statements.last() {
+                Some(statement) => match statement {
+                    Statement::Expression(expression) => match expression {
+                        ExpressionStatement::Terminating(_) => "none".to_string(),
+                        ExpressionStatement::NonTerminating(expression) => {
+                            format!("{}", expression)
+                        }
+                    },
+                    Statement::Return(return_statement) => match return_statement.return_value {
+                        Some(ref expression) => format!("{}", expression),
+                        None => "none".to_string(),
+                    },
+                    Statement::Let(_) => "none".to_string(),
+                },
+                None => "none".to_string(),
+            };
+
+            let dots = if self.statements.len() > 1 { "..." } else { "" };
+
+            let combined = format!("{}{}", dots, display);
+
+            write!(f, "{combined}")
+        }
+    }
+
+    impl Display for Expression {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Expression::Identifier(identifier) => write!(f, "{}", identifier.value),
+                Expression::Int(integer) => write!(f, "{}", integer.value),
+                Expression::Boolean(boolean) => write!(f, "{}", boolean.value),
+                Expression::Function(function) => write!(f, "{}", function),
+                Expression::If(if_expression) => write!(f, "{}", if_expression),
+                Expression::Call(call_expression) => write!(f, "{}", call_expression),
+                Expression::Block(block_expression) => write!(f, "{}", block_expression),
+                Expression::Prefix(prefix_expression) => write!(f, "{}", prefix_expression),
+                Expression::Infix(infix_expression) => write!(f, "{}", infix_expression),
+                Expression::NoneLiteral => write!(f, "none"),
+            }
+        }
+    }
+
+    impl Display for IfExpression {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let alternative = match &self.alternative {
+                Some(expression) => format!("else {expression}"),
+                None => "".to_string(),
+            };
+
+            write!(
+                f,
+                "if {} {} {}",
+                self.condition, self.consequence, alternative
+            )
+        }
+    }
+
+    impl Display for CallExpression {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let arguments = self
+                .arguments
+                .iter()
+                .map(|expression| format!("{}", expression))
+                .collect::<Vec<_>>()
+                .join(", ");
+
+            write!(f, "{}({})", self.function, arguments)
+        }
+    }
+
+    impl Display for CallableExpression {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                CallableExpression::Identifier(identifier) => write!(f, "{}", identifier.value),
+                CallableExpression::Function(function) => write!(f, "{}", function),
+            }
+        }
+    }
+
+    impl Display for PrefixExpression {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}{}", self.operator, self.right)
+        }
+    }
+
+    impl Display for InfixExpression {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{} {} {}", self.left, self.operator, self.right)
+        }
+    }
 }

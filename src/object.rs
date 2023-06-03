@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use crate::{
-    ast::{BlockExpression, IdentifierLiteral},
+    ast::{BlockExpression, FunctionLiteral, IdentifierLiteral},
     environment::Environment,
 };
 
@@ -45,14 +45,11 @@ impl Display for Object {
             Object::ReturnValue(value) => write!(f, "{}", value),
             Object::Function(function) => write!(
                 f,
-                "function({}){:?}",
-                function
-                    .parameters
-                    .iter()
-                    .map(|literal| literal.value.clone())
-                    .collect::<Vec<_>>()
-                    .join(", "),
-                function.body
+                "{}",
+                FunctionLiteral {
+                    parameters: function.parameters.clone(),
+                    body: function.body.clone()
+                }
             ),
         }
     }
