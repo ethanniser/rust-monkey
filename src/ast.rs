@@ -163,6 +163,8 @@ mod expression {
         NotEqual,
         LessThan,
         GreaterThan,
+        Percent,
+        DoubleSlash,
     }
 
     impl Display for InfixOperator {
@@ -176,6 +178,8 @@ mod expression {
                 InfixOperator::NotEqual => write!(f, "!="),
                 InfixOperator::LessThan => write!(f, "<"),
                 InfixOperator::GreaterThan => write!(f, ">"),
+                InfixOperator::Percent => write!(f, "%"),
+                InfixOperator::DoubleSlash => write!(f, "//"),
             }
         }
     }

@@ -32,6 +32,7 @@ pub enum Token {
     Else,
     Return,
     None,
+    Percent,
 }
 
 impl PartialEq for Token {
@@ -70,6 +71,7 @@ impl PartialEq for Token {
             (Token::None, Token::None) => true,
             (Token::LBracket, Token::LBracket) => true,
             (Token::RBracket, Token::RBracket) => true,
+            (Token::Percent, Token::Percent) => true,
             _ => false,
         }
     }
@@ -177,6 +179,9 @@ impl Hash for Token {
             }
             Token::RBracket => {
                 32.hash(state);
+            }
+            Token::Percent => {
+                33.hash(state);
             }
         }
     }

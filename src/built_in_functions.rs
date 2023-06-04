@@ -1,5 +1,4 @@
-use crate::environment::{Env, Environment};
-use crate::evaluator::Node;
+use crate::ast::Program;
 use crate::lexer::Lexer;
 use crate::object::Object;
 use crate::parser::Parser;
@@ -98,7 +97,7 @@ mod type_signatures {
     pub const PUSH: &str = "push(x: array, y: any) -> array";
 }
 
-const BUILT_IN_FUNCTIONS: [(&'static str, BuiltInFunction); 5] = [
+pub const BUILT_IN_FUNCTIONS: [(&'static str, BuiltInFunction); 5] = [
     (
         "len",
         BuiltInFunction {
@@ -157,25 +156,32 @@ let reduce = fn(arr, initial, f) {
   };
   iter(arr, initial)
 };
+let sum = fn(arr) {
+  reduce(arr, 0, fn(initial, el) { initial + el })
+};
+let filter = fn(arr, predicate) {
+  let iter = fn(arr, filtered) {
+    if (len(arr) == 0) {
+      filtered
+    } else {
+      let firstElement = first(arr);
+      let restElements = rest(arr);
+      if (predicate(firstElement)) {
+        iter(restElements, push(filtered, firstElement))
+      } else {
+        iter(restElements, filtered)
+      }
+    }
+  };
+  iter(arr, [])
+};
+
 ";
 
-pub fn get_initial_env() -> Env {
-    let env = Environment::blank();
-    for (name, function) in BUILT_IN_FUNCTIONS {
-        env.borrow_mut()
-            .store
-            .insert(name.to_string(), Rc::new(Object::BuiltIn(function)));
-    }
-    initialize_env_with_std(&env);
-    env
-}
-
-pub fn initialize_env_with_std(env: &Env) {
-    let ref env = Environment::new_enclosed(env);
+pub fn get_std_ast() -> Program {
     let lexer = Lexer::new(STD_LIB.to_string());
     let mut parser = Parser::new(lexer);
-    let program = parser.parse_program();
-    program.eval(env).expect("std lib code shoudnt error");
+    parser.parse_program()
 }
 
 fn len(args: Vec<Rc<Object>>) -> Result<Rc<Object>, BuiltInFunctionError> {
@@ -510,5 +516,37 @@ mod tests {
         ];
 
         test_vs_expectation(pairs);
+    }
+
+    mod std_lib {
+
+        use super::*;
+
+        #[test]
+        fn test_map() {
+            let pairs = vec![(
+                "map([1, 2, 3], fn(x) { x * 2 })",
+                Ok(Object::Array(vec![
+                    Rc::new(Object::Integer(2)),
+                    Rc::new(Object::Integer(4)),
+                    Rc::new(Object::Integer(6)),
+                ])),
+            )];
+
+            test_vs_expectation(pairs);
+        }
+
+        #[test]
+        fn test_filter() {
+            let pairs = vec![(
+                "filter([1, 2, 3, 4], fn(x) { x % 2 == 0 })",
+                Ok(Object::Array(vec![
+                    Rc::new(Object::Integer(2)),
+                    Rc::new(Object::Integer(4)),
+                ])),
+            )];
+
+            test_vs_expectation(pairs);
+        }
     }
 }

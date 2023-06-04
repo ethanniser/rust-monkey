@@ -55,6 +55,7 @@ impl Lexer {
             '/' => Token::Slash,
             '<' => Token::Lt,
             '>' => Token::Gt,
+            '%' => Token::Percent,
             '[' => Token::LBracket,
             ']' => Token::RBracket,
             '"' => match self.read_string() {

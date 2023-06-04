@@ -11,10 +11,8 @@ impl Token {
             Token::NotEq => Precedence::Equals,
             Token::Lt => Precedence::LessGreater,
             Token::Gt => Precedence::LessGreater,
-            Token::Plus => Precedence::Sum,
-            Token::Minus => Precedence::Sum,
-            Token::Slash => Precedence::Product,
-            Token::Asterisk => Precedence::Product,
+            Token::Plus | Token::Minus => Precedence::Sum,
+            Token::Slash | Token::Asterisk | Token::Percent => Precedence::Product,
             Token::LParen => Precedence::Call,
             Token::LBracket => Precedence::Index,
             _ => Precedence::Lowest,
@@ -148,6 +146,7 @@ impl Parser {
         parser.register_infix(Token::NotEq, Parser::parse_infix_expression);
         parser.register_infix(Token::Lt, Parser::parse_infix_expression);
         parser.register_infix(Token::Gt, Parser::parse_infix_expression);
+        parser.register_infix(Token::Percent, Parser::parse_infix_expression);
         parser.register_infix(Token::LParen, Parser::parse_call_expression);
         parser.register_infix(Token::LBracket, Parser::parse_index_expression);
 
@@ -360,11 +359,19 @@ impl Parser {
             Token::Plus => InfixOperator::Plus,
             Token::Minus => InfixOperator::Minus,
             Token::Asterisk => InfixOperator::Asterisk,
-            Token::Slash => InfixOperator::Slash,
+            Token::Slash => {
+                if self.peek_token_is(Token::Slash) {
+                    self.next_token();
+                    InfixOperator::DoubleSlash
+                } else {
+                    InfixOperator::Slash
+                }
+            }
             Token::Eq => InfixOperator::Equal,
             Token::NotEq => InfixOperator::NotEqual,
             Token::Lt => InfixOperator::LessThan,
             Token::Gt => InfixOperator::GreaterThan,
+            Token::Percent => InfixOperator::Percent,
             other_token => {
                 return Err(ParserError::FoundOtherThanExpectedToken {
                     expected: NodeExpectation::One(Node::Operator(Operator::Infix)),
@@ -845,6 +852,7 @@ mod tests {
         let input = "
             a + b / c;
             5 < 4 != 3 > 4;
+            3 % 4;
             ";
 
         let expectation = Program {
@@ -879,6 +887,13 @@ mod tests {
                             operator: InfixOperator::GreaterThan,
                             right: Box::new(Expression::Int(IntegerLiteral { value: 4 })),
                         })),
+                    },
+                ))),
+                Statement::Expression(ExpressionStatement::Terminating(Expression::Infix(
+                    InfixExpression {
+                        left: Box::new(Expression::Int(IntegerLiteral { value: 3 })),
+                        operator: InfixOperator::Percent,
+                        right: Box::new(Expression::Int(IntegerLiteral { value: 4 })),
                     },
                 ))),
             ],
