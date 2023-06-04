@@ -1,4 +1,5 @@
-use crate::ast::Program;
+use crate::environment::Env;
+use crate::evaluator::Node;
 use crate::lexer::Lexer;
 use crate::object::Object;
 use crate::parser::Parser;
@@ -175,13 +176,17 @@ let filter = fn(arr, predicate) {
   };
   iter(arr, [])
 };
+};
 
 ";
 
-pub fn get_std_ast() -> Program {
+pub fn instaniate_std_lib(env: &Env) {
     let lexer = Lexer::new(STD_LIB.to_string());
     let mut parser = Parser::new(lexer);
-    parser.parse_program()
+    let program = parser.parse_program();
+    program
+        .eval(env)
+        .expect("std lib shouldnt fail to evaluate");
 }
 
 fn len(args: Vec<Rc<Object>>) -> Result<Rc<Object>, BuiltInFunctionError> {
@@ -523,7 +528,6 @@ mod tests {
         use super::*;
 
         #[test]
-        #[ignore]
 
         fn test_map() {
             let pairs = vec![(
@@ -539,7 +543,6 @@ mod tests {
         }
 
         #[test]
-        #[ignore]
         fn test_filter() {
             let pairs = vec![(
                 "filter([1, 2, 3, 4], fn(x) { x % 2 == 0 })",
@@ -553,7 +556,6 @@ mod tests {
         }
 
         #[test]
-        #[ignore]
         fn test_reduce() {
             let pairs = vec![(
                 "reduce([1, 2, 3], 0, fn(acc, x) { acc + x })",
@@ -564,7 +566,6 @@ mod tests {
         }
 
         #[test]
-        #[ignore]
         fn test_sum() {
             let pairs = vec![
                 ("sum([1, 2, 3])", Ok(Object::Integer(6))),

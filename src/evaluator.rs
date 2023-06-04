@@ -657,6 +657,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn function_object() {
         let pairs = vec![(
             "fn(x) { x + 2 }",

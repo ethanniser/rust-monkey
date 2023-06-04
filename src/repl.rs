@@ -1,4 +1,3 @@
-use crate::built_in_functions::get_std_ast;
 use crate::environment::Environment;
 use crate::object::Object;
 use crate::parser::Parser;
@@ -18,12 +17,8 @@ const MONKEY_FACE: &str = r#"         .-"-.
 pub fn start<R: BufRead, W: Write>(input: R, mut output: W) -> io::Result<()> {
     let mut lines = input.lines();
     let ref env = Environment::new();
-    let std = get_std_ast();
-    std.eval(env).unwrap();
-    {
-        let x = env.borrow();
-        (*x).debug_print();
-    }
+
+    // debug_scope(env, 0);
 
     loop {
         write!(output, "{PROMPT}")?;
@@ -64,10 +59,7 @@ pub fn start<R: BufRead, W: Write>(input: R, mut output: W) -> io::Result<()> {
             }
         };
 
-        {
-            let x = env.borrow();
-            (*x).debug_print();
-        }
+        // debug_scope(env, 0);
 
         if let Object::None = *evaluated {
             continue;
