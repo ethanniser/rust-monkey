@@ -548,5 +548,25 @@ mod tests {
 
             test_vs_expectation(pairs);
         }
+
+        #[test]
+        fn test_reduce() {
+            let pairs = vec![(
+                "reduce([1, 2, 3], 0, fn(acc, x) { acc + x })",
+                Ok(Object::Integer(6)),
+            )];
+
+            test_vs_expectation(pairs);
+        }
+
+        #[test]
+        fn test_sum() {
+            let pairs = vec![
+                ("sum([1, 2, 3])", Ok(Object::Integer(6))),
+                ("sum([])", Ok(Object::Integer(0))),
+            ];
+
+            test_vs_expectation(pairs);
+        }
     }
 }
