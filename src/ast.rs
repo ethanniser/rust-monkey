@@ -159,6 +159,8 @@ mod expression {
         GreaterThan,
         Percent,
         DoubleSlash,
+        DoubleAmpersand,
+        DoublePipe,
     }
 
     impl Display for InfixOperator {
@@ -174,6 +176,8 @@ mod expression {
                 InfixOperator::GreaterThan => write!(f, ">"),
                 InfixOperator::Percent => write!(f, "%"),
                 InfixOperator::DoubleSlash => write!(f, "//"),
+                InfixOperator::DoubleAmpersand => write!(f, "&&"),
+                InfixOperator::DoublePipe => write!(f, "||"),
             }
         }
     }

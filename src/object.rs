@@ -21,14 +21,10 @@ pub enum Object {
 impl Object {
     pub fn to_bool(&self) -> bool {
         match self {
-            Object::None => false,
-            Object::Integer(integer) => *integer != 0,
-            Object::Boolean(boolean) => *boolean,
+            Object::None => unreachable!("should be guarded against earlier"),
             Object::ReturnValue(value) => value.to_bool(),
-            Object::Function(_) => true,
-            Object::String(string) => !string.is_empty(),
-            Object::BuiltIn(_) => true,
-            Object::Array(_) => true,
+            Object::Boolean(boolean) => *boolean,
+            _ => true,
         }
     }
 

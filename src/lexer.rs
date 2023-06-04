@@ -58,6 +58,23 @@ impl Lexer {
             '%' => Token::Percent,
             '[' => Token::LBracket,
             ']' => Token::RBracket,
+            '|' => {
+                if self.peek_char() == '|' {
+                    self.read_char();
+                    Token::DoublePipe
+                } else {
+                    Token::UnknownIllegal
+                }
+            }
+            '&' => {
+                if self.peek_char() == '&' {
+                    self.read_char();
+                    Token::DoubleAmpersand
+                } else {
+                    Token::UnknownIllegal
+                }
+            }
+            ':' => Token::Colon,
             '"' => match self.read_string() {
                 Some(s) => Token::String(s),
                 None => Token::UnterminatedString,
@@ -187,6 +204,8 @@ mod tests {
                     "foobar"
                     "foo bar"
                     [1, 2]
+                    {"foo": "bar"}
+                    true && false || true
                     "#
         .to_string();
 
@@ -271,6 +290,16 @@ mod tests {
             Token::Comma,
             Token::Int(2),
             Token::RBracket,
+            Token::LBrace,
+            Token::String("foo".to_string()),
+            Token::Colon,
+            Token::String("bar".to_string()),
+            Token::RBrace,
+            Token::True,
+            Token::DoubleAmpersand,
+            Token::False,
+            Token::DoublePipe,
+            Token::True,
             Token::EOF,
         ];
 

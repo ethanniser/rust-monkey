@@ -7,10 +7,10 @@ use std::fmt::Display;
 impl Token {
     fn get_precedence(&self) -> Precedence {
         match self {
-            Token::Eq => Precedence::Equals,
-            Token::NotEq => Precedence::Equals,
-            Token::Lt => Precedence::LessGreater,
-            Token::Gt => Precedence::LessGreater,
+            Token::Eq | Token::NotEq | Token::DoubleAmpersand | Token::DoublePipe => {
+                Precedence::Equals
+            }
+            Token::Lt | Token::Gt => Precedence::LessGreater,
             Token::Plus | Token::Minus => Precedence::Sum,
             Token::Slash | Token::Asterisk | Token::Percent => Precedence::Product,
             Token::LParen => Precedence::Call,
@@ -149,6 +149,8 @@ impl Parser {
         parser.register_infix(Token::Percent, Parser::parse_infix_expression);
         parser.register_infix(Token::LParen, Parser::parse_call_expression);
         parser.register_infix(Token::LBracket, Parser::parse_index_expression);
+        parser.register_infix(Token::DoubleAmpersand, Parser::parse_infix_expression);
+        parser.register_infix(Token::DoublePipe, Parser::parse_infix_expression);
 
         parser.next_token();
         parser.next_token();
@@ -372,6 +374,8 @@ impl Parser {
             Token::Lt => InfixOperator::LessThan,
             Token::Gt => InfixOperator::GreaterThan,
             Token::Percent => InfixOperator::Percent,
+            Token::DoubleAmpersand => InfixOperator::DoubleAmpersand,
+            Token::DoublePipe => InfixOperator::DoublePipe,
             other_token => {
                 return Err(ParserError::FoundOtherThanExpectedToken {
                     expected: NodeExpectation::One(Node::Operator(Operator::Infix)),

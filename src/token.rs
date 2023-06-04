@@ -33,6 +33,9 @@ pub enum Token {
     Return,
     None,
     Percent,
+    DoublePipe,
+    DoubleAmpersand,
+    Colon,
 }
 
 impl PartialEq for Token {
@@ -72,6 +75,9 @@ impl PartialEq for Token {
             (Token::LBracket, Token::LBracket) => true,
             (Token::RBracket, Token::RBracket) => true,
             (Token::Percent, Token::Percent) => true,
+            (Token::DoublePipe, Token::DoublePipe) => true,
+            (Token::DoubleAmpersand, Token::DoubleAmpersand) => true,
+            (Token::Colon, Token::Colon) => true,
             _ => false,
         }
     }
@@ -182,6 +188,15 @@ impl Hash for Token {
             }
             Token::Percent => {
                 33.hash(state);
+            }
+            Token::DoublePipe => {
+                34.hash(state);
+            }
+            Token::DoubleAmpersand => {
+                35.hash(state);
+            }
+            Token::Colon => {
+                36.hash(state);
             }
         }
     }

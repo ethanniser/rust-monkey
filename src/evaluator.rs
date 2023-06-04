@@ -345,112 +345,145 @@ impl Node for InfixExpression {
         let left = self.left.eval(env)?;
         let right = self.right.eval(env)?;
 
-        match (left.as_ref(), right.as_ref()) {
-            (Object::Integer(l_val), Object::Integer(r_val)) => match self.operator {
-                InfixOperator::Plus => Ok(Rc::new(Object::Integer(l_val + r_val))),
-                InfixOperator::Minus => Ok(Rc::new(Object::Integer(l_val - r_val))),
-                InfixOperator::Asterisk => Ok(Rc::new(Object::Integer(l_val * r_val))),
-                InfixOperator::Slash => Ok(Rc::new(Object::Integer(l_val / r_val))),
-                InfixOperator::Equal => Ok(Rc::new(Object::Boolean(l_val == r_val))),
-                InfixOperator::NotEqual => Ok(Rc::new(Object::Boolean(l_val != r_val))),
-                InfixOperator::GreaterThan => Ok(Rc::new(Object::Boolean(l_val > r_val))),
-                InfixOperator::LessThan => Ok(Rc::new(Object::Boolean(l_val < r_val))),
-                InfixOperator::Percent => Ok(Rc::new(Object::Integer(l_val % r_val))),
-                InfixOperator::DoubleSlash => Ok(Rc::new(Object::Integer(l_val / r_val))),
-            },
-            (Object::Boolean(l_val), Object::Boolean(r_val)) => match self.operator {
-                InfixOperator::Equal => Ok(Rc::new(Object::Boolean(l_val == r_val))),
-                InfixOperator::NotEqual => Ok(Rc::new(Object::Boolean(l_val != r_val))),
-                _ => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
-                    InfixMismatch {
-                        left: Rc::clone(&left),
-                        operator: self.operator,
-                        right: Rc::clone(&right),
-                    },
-                ))),
-            },
-            (Object::Boolean(l_val), Object::Integer(r_val)) => match self.operator {
-                InfixOperator::Equal => Ok(Rc::new(Object::Boolean(
-                    *l_val == Object::Integer(*r_val).to_bool(),
-                ))),
-                InfixOperator::NotEqual => Ok(Rc::new(Object::Boolean(
-                    *l_val != Object::Integer(*r_val).to_bool(),
-                ))),
-                _ => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
-                    InfixMismatch {
-                        left: Rc::clone(&left),
-                        operator: self.operator,
-                        right: Rc::clone(&right),
-                    },
-                ))),
-            },
-            (Object::Integer(l_val), Object::Boolean(r_val)) => match self.operator {
-                InfixOperator::Equal => Ok(Rc::new(Object::Boolean(
-                    Object::Integer(*l_val).to_bool() == *r_val,
-                ))),
-                InfixOperator::NotEqual => Ok(Rc::new(Object::Boolean(
-                    Object::Integer(*l_val).to_bool() != *r_val,
-                ))),
-                _ => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
-                    InfixMismatch {
-                        left: Rc::clone(&left),
-                        operator: self.operator,
-                        right: Rc::clone(&right),
-                    },
-                ))),
-            },
-            (Object::String(l_val), Object::String(r_val)) => match self.operator {
-                InfixOperator::Plus => Ok(Rc::new(Object::String(format!("{}{}", l_val, r_val)))),
-                InfixOperator::Equal => Ok(Rc::new(Object::Boolean(l_val == r_val))),
-                InfixOperator::NotEqual => Ok(Rc::new(Object::Boolean(l_val != r_val))),
-                _ => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
-                    InfixMismatch {
-                        left,
-                        operator: self.operator,
-                        right,
-                    },
-                ))),
-            },
-            (Object::None, Object::None) => match self.operator {
-                InfixOperator::Equal => Ok(Rc::new(Object::Boolean(true))),
-                InfixOperator::NotEqual => Ok(Rc::new(Object::Boolean(false))),
-                _ => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
-                    InfixMismatch {
-                        left: Rc::clone(&left),
-                        operator: self.operator,
-                        right: Rc::clone(&right),
-                    },
-                ))),
-            },
-            (Object::None, _) => match self.operator {
-                InfixOperator::Equal => Ok(Rc::new(Object::Boolean(false))),
-                InfixOperator::NotEqual => Ok(Rc::new(Object::Boolean(true))),
-                _ => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
-                    InfixMismatch {
-                        left: Rc::clone(&left),
-                        operator: self.operator,
-                        right: Rc::clone(&right),
-                    },
-                ))),
-            },
-            (_, Object::None) => match self.operator {
-                InfixOperator::Equal => Ok(Rc::new(Object::Boolean(false))),
-                InfixOperator::NotEqual => Ok(Rc::new(Object::Boolean(true))),
-                _ => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
-                    InfixMismatch {
-                        left: Rc::clone(&left),
-                        operator: self.operator,
-                        right: Rc::clone(&right),
-                    },
-                ))),
-            },
-            (_, _) => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
-                InfixMismatch {
-                    left: Rc::clone(&left),
-                    operator: self.operator,
-                    right: Rc::clone(&right),
-                },
+        match self.operator {
+            InfixOperator::DoubleAmpersand => Ok(Rc::new(Object::Boolean(
+                (*left).to_bool() && (*right).to_bool(),
             ))),
+            InfixOperator::DoublePipe => Ok(Rc::new(Object::Boolean(
+                (*left).to_bool() || (*right).to_bool(),
+            ))),
+            InfixOperator::Equal => match (&*left, &*right) {
+                (Object::Integer(left), Object::Integer(right)) => {
+                    Ok(Rc::new(Object::Boolean(left == right)))
+                }
+                (Object::Boolean(left), Object::Boolean(right)) => {
+                    Ok(Rc::new(Object::Boolean(left == right)))
+                }
+                (Object::String(left), Object::String(right)) => {
+                    Ok(Rc::new(Object::Boolean(left == right)))
+                }
+                (Object::Array(left), Object::Array(right)) => {
+                    Ok(Rc::new(Object::Boolean(left == right)))
+                }
+                (Object::None, Object::None) => Ok(Rc::new(Object::Boolean(true))),
+                (Object::None, _) => Ok(Rc::new(Object::Boolean(false))),
+                (_, Object::None) => Ok(Rc::new(Object::Boolean(false))),
+                (left, right) => Ok(Rc::new(Object::Boolean(left.to_bool() == right.to_bool()))),
+            },
+            InfixOperator::NotEqual => match (&*left, &*right) {
+                (Object::Integer(left), Object::Integer(right)) => {
+                    Ok(Rc::new(Object::Boolean(left != right)))
+                }
+                (Object::Boolean(left), Object::Boolean(right)) => {
+                    Ok(Rc::new(Object::Boolean(left != right)))
+                }
+                (Object::String(left), Object::String(right)) => {
+                    Ok(Rc::new(Object::Boolean(left != right)))
+                }
+                (Object::Array(left), Object::Array(right)) => {
+                    Ok(Rc::new(Object::Boolean(left != right)))
+                }
+                (left, right) => Ok(Rc::new(Object::Boolean(left.to_bool() != right.to_bool()))),
+            },
+            InfixOperator::GreaterThan => match (&*left, &*right) {
+                (Object::Integer(left), Object::Integer(right)) => {
+                    Ok(Rc::new(Object::Boolean(left > right)))
+                }
+                _ => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
+                    InfixMismatch {
+                        operator: InfixOperator::GreaterThan,
+                        left: Rc::clone(&left),
+                        right: Rc::clone(&right),
+                    },
+                ))),
+            },
+            InfixOperator::LessThan => match (&*left, &*right) {
+                (Object::Integer(left), Object::Integer(right)) => {
+                    Ok(Rc::new(Object::Boolean(left < right)))
+                }
+                _ => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
+                    InfixMismatch {
+                        operator: InfixOperator::LessThan,
+                        left: Rc::clone(&left),
+                        right: Rc::clone(&right),
+                    },
+                ))),
+            },
+            InfixOperator::Plus => match (&*left, &*right) {
+                (Object::Integer(left), Object::Integer(right)) => {
+                    Ok(Rc::new(Object::Integer(left + right)))
+                }
+                (Object::String(left), Object::String(right)) => {
+                    Ok(Rc::new(Object::String(format!("{}{}", left, right))))
+                }
+                _ => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
+                    InfixMismatch {
+                        operator: InfixOperator::Plus,
+                        left: Rc::clone(&left),
+                        right: Rc::clone(&right),
+                    },
+                ))),
+            },
+            InfixOperator::Minus => match (&*left, &*right) {
+                (Object::Integer(left), Object::Integer(right)) => {
+                    Ok(Rc::new(Object::Integer(left - right)))
+                }
+                _ => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
+                    InfixMismatch {
+                        operator: InfixOperator::Minus,
+                        left: Rc::clone(&left),
+                        right: Rc::clone(&right),
+                    },
+                ))),
+            },
+            InfixOperator::Asterisk => match (&*left, &*right) {
+                (Object::Integer(left), Object::Integer(right)) => {
+                    Ok(Rc::new(Object::Integer(left * right)))
+                }
+                _ => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
+                    InfixMismatch {
+                        operator: InfixOperator::Asterisk,
+                        left: Rc::clone(&left),
+                        right: Rc::clone(&right),
+                    },
+                ))),
+            },
+            InfixOperator::Slash => match (&*left, &*right) {
+                (Object::Integer(left), Object::Integer(right)) => {
+                    Ok(Rc::new(Object::Integer(left / right)))
+                }
+                _ => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
+                    InfixMismatch {
+                        operator: InfixOperator::Slash,
+                        left: Rc::clone(&left),
+                        right: Rc::clone(&right),
+                    },
+                ))),
+            },
+            InfixOperator::Percent => match (&*left, &*right) {
+                (Object::Integer(left), Object::Integer(right)) => {
+                    Ok(Rc::new(Object::Integer(left % right)))
+                }
+                _ => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
+                    InfixMismatch {
+                        operator: InfixOperator::Percent,
+                        left: Rc::clone(&left),
+                        right: Rc::clone(&right),
+                    },
+                ))),
+            },
+            InfixOperator::DoubleSlash => match (&*left, &*right) {
+                (Object::Integer(left), Object::Integer(right)) => {
+                    Ok(Rc::new(Object::Integer(left / right)))
+                }
+                _ => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
+                    InfixMismatch {
+                        operator: InfixOperator::DoubleSlash,
+                        left: Rc::clone(&left),
+                        right: Rc::clone(&right),
+                    },
+                ))),
+            },
         }
     }
 }
@@ -833,6 +866,19 @@ mod tests {
                     length: 3,
                 }),
             ),
+        ];
+
+        test_vs_expectation(pairs);
+    }
+
+    #[test]
+    fn additional_operators() {
+        let pairs = vec![
+            ("5 // 2", Ok(Object::Integer(2))),
+            ("6 % 2", Ok(Object::Integer(0))),
+            ("true || false", Ok(Object::Boolean(true))),
+            ("true && true", Ok(Object::Boolean(true))),
+            ("true && false", Ok(Object::Boolean(false))),
         ];
 
         test_vs_expectation(pairs);
