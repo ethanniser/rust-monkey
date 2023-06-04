@@ -597,28 +597,11 @@ impl Parser {
         Ok(identifiers)
     }
 
-    fn parse_call_expression(&mut self, function: Expression) -> Result<Expression, ParserError> {
-        let function = match function {
-            Expression::Identifier(identifier_literal) => {
-                CallableExpression::Identifier(identifier_literal)
-            }
-            Expression::Function(function_literal) => {
-                CallableExpression::Function(function_literal)
-            }
-            other_expression => {
-                return Err(ParserError::FoundOtherThanExpectedToken {
-                    expected: NodeExpectation::Many(vec![
-                        Node::Token(Token::Identifier(String::new())),
-                        Node::Token(Token::Function),
-                    ]),
-                    found: Node::Expression(other_expression),
-                });
-            }
-        };
+    fn parse_call_expression(&mut self, left: Expression) -> Result<Expression, ParserError> {
         let arguments = self.parse_expression_list(Token::RParen)?;
 
         Ok(Expression::Call(CallExpression {
-            function,
+            left: Box::new(left),
             arguments,
         }))
     }
@@ -1079,9 +1062,9 @@ mod tests {
         let expectation = Program {
             statements: vec![Statement::Expression(ExpressionStatement::Terminating(
                 Expression::Call(CallExpression {
-                    function: CallableExpression::Identifier(IdentifierLiteral {
+                    left: Box::new(Expression::Identifier(IdentifierLiteral {
                         value: "add".to_string(),
-                    }),
+                    })),
                     arguments: vec![
                         Expression::Int(IntegerLiteral { value: 1 }),
                         Expression::Infix(InfixExpression {
@@ -1481,18 +1464,6 @@ mod tests {
                     "add(1, 2,)",
                     vec![ParserError::NoPrefixParseFnFound {
                         token: Token::RParen,
-                    }],
-                ),
-                (
-                    "true()",
-                    vec![ParserError::FoundOtherThanExpectedToken {
-                        expected: NodeExpectation::Many(vec![
-                            Node::Token(Token::Identifier(String::new())),
-                            Node::Token(Token::Function),
-                        ]),
-                        found: Node::Expression(Expression::Boolean(BooleanLiteral {
-                            value: true,
-                        })),
                     }],
                 ),
             ];

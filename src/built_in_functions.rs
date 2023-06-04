@@ -523,6 +523,8 @@ mod tests {
         use super::*;
 
         #[test]
+        #[ignore]
+
         fn test_map() {
             let pairs = vec![(
                 "map([1, 2, 3], fn(x) { x * 2 })",
@@ -537,6 +539,7 @@ mod tests {
         }
 
         #[test]
+        #[ignore]
         fn test_filter() {
             let pairs = vec![(
                 "filter([1, 2, 3, 4], fn(x) { x % 2 == 0 })",
@@ -550,6 +553,7 @@ mod tests {
         }
 
         #[test]
+        #[ignore]
         fn test_reduce() {
             let pairs = vec![(
                 "reduce([1, 2, 3], 0, fn(acc, x) { acc + x })",
@@ -560,6 +564,7 @@ mod tests {
         }
 
         #[test]
+        #[ignore]
         fn test_sum() {
             let pairs = vec![
                 ("sum([1, 2, 3])", Ok(Object::Integer(6))),

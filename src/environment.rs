@@ -17,11 +17,11 @@ impl Environment {
             store: HashMap::new(),
             outer: None,
         }));
-        for (name, function) in BUILT_IN_FUNCTIONS {
-            env.borrow_mut()
-                .store
-                .insert(name.to_string(), Rc::new(Object::BuiltIn(function)));
-        }
+        // for (name, function) in BUILT_IN_FUNCTIONS {
+        //     env.borrow_mut()
+        //         .store
+        //         .insert(name.to_string(), Rc::new(Object::BuiltIn(function)));
+        // }
         env
     }
 
@@ -47,5 +47,11 @@ impl Environment {
 
     pub fn set(&mut self, key: String, value: Rc<Object>) {
         self.store.insert(key, value);
+    }
+
+    pub fn debug_print(&self) {
+        for (key, value) in &self.store {
+            println!("{}: {:?}", key, value);
+        }
     }
 }

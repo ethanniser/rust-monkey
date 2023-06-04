@@ -110,14 +110,8 @@ mod expression {
 
     #[derive(Debug, PartialEq, Clone)]
     pub struct CallExpression {
-        pub function: CallableExpression,
+        pub left: Box<Expression>,
         pub arguments: Vec<Expression>,
-    }
-
-    #[derive(Debug, PartialEq, Clone)]
-    pub enum CallableExpression {
-        Identifier(IdentifierLiteral),
-        Function(FunctionLiteral),
     }
 
     #[derive(Debug, PartialEq, Clone)]
@@ -288,16 +282,7 @@ mod expression {
                 .collect::<Vec<_>>()
                 .join(", ");
 
-            write!(f, "{}({})", self.function, arguments)
-        }
-    }
-
-    impl Display for CallableExpression {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            match self {
-                CallableExpression::Identifier(identifier) => write!(f, "{}", identifier.value),
-                CallableExpression::Function(function) => write!(f, "{}", function),
-            }
+            write!(f, "{}({})", self.left, arguments)
         }
     }
 
