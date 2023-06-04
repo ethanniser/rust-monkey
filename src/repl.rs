@@ -20,6 +20,8 @@ pub fn start<R: BufRead, W: Write>(input: R, mut output: W) -> io::Result<()> {
 
     // debug_scope(env, 0);
 
+    println!("{:?}", (*env).borrow().store);
+
     loop {
         write!(output, "{PROMPT}")?;
         output.flush()?;

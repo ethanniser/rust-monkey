@@ -63,7 +63,7 @@ impl Lexer {
                     self.read_char();
                     Token::DoublePipe
                 } else {
-                    Token::UnknownIllegal
+                    Token::Illegal
                 }
             }
             '&' => {
@@ -71,14 +71,14 @@ impl Lexer {
                     self.read_char();
                     Token::DoubleAmpersand
                 } else {
-                    Token::UnknownIllegal
+                    Token::Illegal
                 }
             }
             ':' => Token::Colon,
-            '"' => match self.read_string() {
-                Some(s) => Token::String(s),
-                None => Token::UnterminatedString,
-            },
+            '"' => {
+                let string = self.read_string();
+                Token::String(string)
+            }
             '\0' => Token::EOF,
             _ => {
                 flag = true;
@@ -89,7 +89,7 @@ impl Lexer {
                     Token::Int(self.read_number())
                 } else {
                     self.read_char();
-                    Token::UnknownIllegal
+                    Token::Illegal
                 }
             }
         };
@@ -100,26 +100,21 @@ impl Lexer {
         token
     }
 
-    fn read_string(&mut self) -> Option<String> {
+    fn read_string(&mut self) -> String {
         let position = self.position + 1;
         let mut escape_next = false;
         loop {
             self.read_char();
             if escape_next {
                 escape_next = false;
-            } else if self.ch == '\0' {
-                break;
             } else if self.ch == '\\' {
                 escape_next = true;
-            } else if self.ch == '"' {
+            } else if self.ch == '"' || self.ch == '\0' {
                 break;
             }
         }
-        if self.ch == '\0' {
-            return None;
-        }
 
-        Some(self.input[position..self.position].iter().collect())
+        self.input[position..self.position].iter().collect()
     }
 
     fn read_char(&mut self) {
@@ -327,7 +322,7 @@ mod tests {
     #[test]
     fn illegal() {
         let input = "&5".to_string();
-        let expected_output = [Token::UnknownIllegal, Token::Int(5), Token::EOF];
+        let expected_output = [Token::Illegal, Token::Int(5), Token::EOF];
         let mut lexer = Lexer::new(input);
 
         let mut tokens = Vec::new();
@@ -352,7 +347,7 @@ mod tests {
     #[test]
     fn unclosed_string() {
         let input = r#""this is a string"#.to_string();
-        let expected_output = [Token::UnterminatedString, Token::EOF];
+        let expected_output = [Token::String("this is a string".to_string()), Token::EOF];
         let mut lexer = Lexer::new(input);
 
         let mut tokens = Vec::new();

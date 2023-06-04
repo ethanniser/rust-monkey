@@ -5,10 +5,26 @@ use crate::object::Object;
 
 pub type Env = Rc<RefCell<Environment>>;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(PartialEq, Clone)]
 pub struct Environment {
     pub store: HashMap<String, Rc<Object>>,
     pub outer: Option<Env>,
+}
+
+impl std::fmt::Debug for Environment {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_map()
+            .entries(self.store.iter().map(|(k, v)| {
+                (
+                    k,
+                    match &**v {
+                        Object::Function(_) => "Function { .. }",
+                        _ => std::any::type_name::<Object>(),
+                    },
+                )
+            }))
+            .finish()
+    }
 }
 
 impl Environment {

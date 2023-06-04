@@ -176,7 +176,6 @@ let filter = fn(arr, predicate) {
   };
   iter(arr, [])
 };
-};
 
 ";
 

@@ -1,7 +1,6 @@
 #[derive(Debug, Clone)]
 pub enum Token {
-    UnknownIllegal,
-    UnterminatedString,
+    Illegal,
     EOF,
     Identifier(String),
     Int(isize),
@@ -42,8 +41,7 @@ impl PartialEq for Token {
     #[allow(clippy::match_like_matches_macro)]
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Token::UnknownIllegal, Token::UnknownIllegal) => true,
-            (Token::UnterminatedString, Token::UnterminatedString) => true,
+            (Token::Illegal, Token::Illegal) => true,
             (Token::EOF, Token::EOF) => true,
             (Token::Identifier(_), Token::Identifier(_)) => true,
             (Token::Int(_), Token::Int(_)) => true,
@@ -90,7 +88,7 @@ use std::hash::{Hash, Hasher};
 impl Hash for Token {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
-            Token::UnknownIllegal => {
+            Token::Illegal => {
                 1.hash(state);
             }
             Token::EOF => {
@@ -176,9 +174,6 @@ impl Hash for Token {
             }
             Token::String(_) => {
                 29.hash(state);
-            }
-            Token::UnterminatedString => {
-                30.hash(state);
             }
             Token::LBracket => {
                 31.hash(state);

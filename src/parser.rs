@@ -113,8 +113,8 @@ impl Parser {
     pub fn new(lexer: Lexer) -> Parser {
         let mut parser = Parser {
             lexer,
-            cur_token: Token::UnknownIllegal,
-            peek_token: Token::UnknownIllegal,
+            cur_token: Token::Illegal,
+            peek_token: Token::Illegal,
             errors: Vec::new(),
             prefix_parse_fns: HashMap::new(),
             infix_parse_fns: HashMap::new(),
@@ -135,7 +135,6 @@ impl Parser {
         parser.register_prefix(Token::LBrace, Parser::parse_block_expression);
         parser.register_prefix(Token::None, Parser::parse_none_literal);
         parser.register_prefix(Token::String("".to_string()), Parser::parse_string_literal);
-        parser.register_prefix(Token::UnterminatedString, Parser::parse_string_literal);
         parser.register_prefix(Token::LBracket, Parser::parse_array_literal);
 
         parser.register_infix(Token::Plus, Parser::parse_infix_expression);
@@ -423,10 +422,6 @@ impl Parser {
 
     fn parse_string_literal(&mut self) -> Result<Expression, ParserError> {
         match self.cur_token.clone() {
-            Token::UnterminatedString => Err(ParserError::FoundOtherThanExpectedToken {
-                expected: NodeExpectation::One(Node::Token(Token::String(String::new()))),
-                found: Node::Token(self.cur_token.clone()),
-            }),
             Token::String(value) => Ok(Expression::String(StringLiteral { value })),
             _ => unreachable!(
                 "parse_string_literal called only ever be invoked when current token is String"
@@ -1344,7 +1339,7 @@ mod tests {
             let pairs = vec![(
                 "5 @ 5",
                 vec![ParserError::NoPrefixParseFnFound {
-                    token: Token::UnknownIllegal,
+                    token: Token::Illegal,
                 }],
             )];
 
@@ -1356,7 +1351,7 @@ mod tests {
             let pairs = vec![(
                 "&5",
                 vec![ParserError::NoPrefixParseFnFound {
-                    token: Token::UnknownIllegal,
+                    token: Token::Illegal,
                 }],
             )];
 
@@ -1471,19 +1466,6 @@ mod tests {
                     }],
                 ),
             ];
-
-            test_vs_error(pairs);
-        }
-
-        #[test]
-        fn unterminated_string() {
-            let pairs = vec![(
-                r#""hello"#,
-                vec![ParserError::FoundOtherThanExpectedToken {
-                    expected: NodeExpectation::One(Node::Token(Token::String(String::new()))),
-                    found: Node::Token(Token::UnterminatedString),
-                }],
-            )];
 
             test_vs_error(pairs);
         }
