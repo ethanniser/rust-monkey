@@ -20,7 +20,7 @@ pub fn start<R: BufRead, W: Write>(input: R, mut output: W) -> io::Result<()> {
 
     // debug_scope(env, 0);
 
-    println!("{:?}", (*env).borrow().store);
+    // println!("{:?}", (*env).borrow().store);
 
     loop {
         write!(output, "{PROMPT}")?;
@@ -48,25 +48,25 @@ pub fn start<R: BufRead, W: Write>(input: R, mut output: W) -> io::Result<()> {
             }
         }
 
-        // writeln!(output, "<temp> parser output{:?}", program.statements)?;
+        writeln!(output, "<temp> parser output{:?}", program.statements)?;
 
-        let evaluated = match program.eval(env) {
-            Ok(evaluated) => evaluated,
-            Err(e) => {
-                writeln!(output, "Woops! We ran into some monkey business here!")?;
-                writeln!(output, "{}", MONKEY_FACE)?;
-                writeln!(output, "Evaluation Error:")?;
-                writeln!(output, "{e}")?;
-                continue;
-            }
-        };
+        // let evaluated = match program.eval(env) {
+        //     Ok(evaluated) => evaluated,
+        //     Err(e) => {
+        //         writeln!(output, "Woops! We ran into some monkey business here!")?;
+        //         writeln!(output, "{}", MONKEY_FACE)?;
+        //         writeln!(output, "Evaluation Error:")?;
+        //         writeln!(output, "{e}")?;
+        //         continue;
+        //     }
+        // };
 
-        // debug_scope(env, 0);
+        // // debug_scope(env, 0);
 
-        if let Object::None = *evaluated {
-            continue;
-        }
+        // if let Object::None = *evaluated {
+        //     continue;
+        // }
 
-        writeln!(output, "{}", evaluated)?
+        // writeln!(output, "{}", evaluated)?
     }
 }

@@ -161,6 +161,8 @@ mod expression {
         DoubleSlash,
         DoubleAmpersand,
         DoublePipe,
+        LParen,
+        LBracket,
     }
 
     impl Display for InfixOperator {
@@ -178,6 +180,8 @@ mod expression {
                 InfixOperator::DoubleSlash => write!(f, "//"),
                 InfixOperator::DoubleAmpersand => write!(f, "&&"),
                 InfixOperator::DoublePipe => write!(f, "||"),
+                InfixOperator::LParen => write!(f, "("),
+                InfixOperator::LBracket => write!(f, "["),
             }
         }
     }

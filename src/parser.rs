@@ -1,7 +1,6 @@
 use crate::ast::*;
 use crate::lexer::Lexer;
 use crate::token::Token;
-use std::collections::HashMap;
 use std::fmt::Display;
 
 impl Token {
@@ -32,9 +31,6 @@ enum Precedence {
     Index,
 }
 
-type PrefixParseFn = fn(&mut Parser) -> Result<Expression, ParserError>;
-type InfixParseFn = fn(&mut Parser, Expression) -> Result<Expression, ParserError>;
-
 #[derive(Debug, PartialEq)]
 pub enum Operator {
     Prefix,
@@ -42,7 +38,7 @@ pub enum Operator {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum Node {
+pub enum ParserExpectation {
     Statement(Statement),
     Expression(Expression),
     Token(Token),
@@ -50,16 +46,16 @@ pub enum Node {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum NodeExpectation {
-    One(Node),
-    Many(Vec<Node>),
+pub enum Amount {
+    One(ParserExpectation),
+    Many(Vec<ParserExpectation>),
 }
 
-impl Display for NodeExpectation {
+impl Display for Amount {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            NodeExpectation::One(node) => write!(f, "{:?}", node),
-            NodeExpectation::Many(nodes) => {
+            Amount::One(node) => write!(f, "{:?}", node),
+            Amount::Many(nodes) => {
                 let mut nodes_str = String::new();
                 for node in nodes {
                     nodes_str.push_str(&format!("{:?}, ", node));
@@ -73,8 +69,8 @@ impl Display for NodeExpectation {
 #[derive(Debug, PartialEq)]
 pub enum ParserError {
     FoundOtherThanExpectedToken {
-        expected: NodeExpectation,
-        found: Node,
+        expected: Amount,
+        found: ParserExpectation,
     },
     NoPrefixParseFnFound {
         token: Token,
@@ -105,8 +101,6 @@ pub struct Parser {
     cur_token: Token,
     peek_token: Token,
     pub errors: Vec<ParserError>,
-    pub prefix_parse_fns: HashMap<Token, PrefixParseFn>,
-    pub infix_parse_fns: HashMap<Token, InfixParseFn>,
 }
 
 impl Parser {
@@ -116,40 +110,7 @@ impl Parser {
             cur_token: Token::Illegal,
             peek_token: Token::Illegal,
             errors: Vec::new(),
-            prefix_parse_fns: HashMap::new(),
-            infix_parse_fns: HashMap::new(),
         };
-
-        parser.register_prefix(
-            Token::Identifier("".to_string()),
-            Parser::parse_identifier_literal,
-        );
-        parser.register_prefix(Token::Int(0), Parser::parse_interger_literal);
-        parser.register_prefix(Token::Bang, Parser::parse_prefix_expression);
-        parser.register_prefix(Token::Minus, Parser::parse_prefix_expression);
-        parser.register_prefix(Token::True, Parser::parse_boolean_literal);
-        parser.register_prefix(Token::False, Parser::parse_boolean_literal);
-        parser.register_prefix(Token::LParen, Parser::parse_grouped_expression);
-        parser.register_prefix(Token::If, Parser::parse_if_expression);
-        parser.register_prefix(Token::Function, Parser::parse_function_literal);
-        parser.register_prefix(Token::LBrace, Parser::parse_block_expression);
-        parser.register_prefix(Token::None, Parser::parse_none_literal);
-        parser.register_prefix(Token::String("".to_string()), Parser::parse_string_literal);
-        parser.register_prefix(Token::LBracket, Parser::parse_array_literal);
-
-        parser.register_infix(Token::Plus, Parser::parse_infix_expression);
-        parser.register_infix(Token::Minus, Parser::parse_infix_expression);
-        parser.register_infix(Token::Asterisk, Parser::parse_infix_expression);
-        parser.register_infix(Token::Slash, Parser::parse_infix_expression);
-        parser.register_infix(Token::Eq, Parser::parse_infix_expression);
-        parser.register_infix(Token::NotEq, Parser::parse_infix_expression);
-        parser.register_infix(Token::Lt, Parser::parse_infix_expression);
-        parser.register_infix(Token::Gt, Parser::parse_infix_expression);
-        parser.register_infix(Token::Percent, Parser::parse_infix_expression);
-        parser.register_infix(Token::LParen, Parser::parse_call_expression);
-        parser.register_infix(Token::LBracket, Parser::parse_index_expression);
-        parser.register_infix(Token::DoubleAmpersand, Parser::parse_infix_expression);
-        parser.register_infix(Token::DoublePipe, Parser::parse_infix_expression);
 
         parser.next_token();
         parser.next_token();
@@ -160,6 +121,10 @@ impl Parser {
     fn next_token(&mut self) {
         self.cur_token = self.peek_token.clone();
         self.peek_token = self.lexer.next_token();
+        println!(
+            "cur_token: {:?}, peek_token: {:?}",
+            self.cur_token, self.peek_token
+        )
     }
 
     fn cur_token_is(&self, token: Token) -> bool {
@@ -176,8 +141,8 @@ impl Parser {
             Ok(())
         } else {
             Err(ParserError::FoundOtherThanExpectedToken {
-                expected: NodeExpectation::One(Node::Token(token)),
-                found: Node::Token(self.peek_token.clone()),
+                expected: Amount::One(ParserExpectation::Token(token)),
+                found: ParserExpectation::Token(self.peek_token.clone()),
             })
         }
     }
@@ -188,14 +153,6 @@ impl Parser {
 
     fn cur_precedence(&self) -> Precedence {
         self.cur_token.get_precedence()
-    }
-
-    pub fn register_prefix(&mut self, token: Token, function: PrefixParseFn) {
-        self.prefix_parse_fns.insert(token, function);
-    }
-
-    pub fn register_infix(&mut self, token: Token, function: InfixParseFn) {
-        self.infix_parse_fns.insert(token, function);
     }
 
     pub fn parse_program(&mut self) -> Program {
@@ -234,8 +191,10 @@ impl Parser {
             },
             other_token => {
                 return Err(ParserError::FoundOtherThanExpectedToken {
-                    expected: NodeExpectation::One(Node::Token(Token::Identifier(String::new()))),
-                    found: Node::Token(other_token),
+                    expected: Amount::One(ParserExpectation::Token(Token::Identifier(
+                        String::new(),
+                    ))),
+                    found: ParserExpectation::Token(other_token),
                 })
             }
         };
@@ -308,80 +267,128 @@ impl Parser {
     }
 
     fn parse_expression(&mut self, precedence: Precedence) -> Result<Expression, ParserError> {
-        let prefix = self.prefix_parse_fns.get(&self.cur_token);
+        let mut left = self.parse_prefix_expression()?;
+        println!("parse_expression: {:?}", left);
+        while !self.peek_token_is(Token::Semicolon) && precedence < self.peek_precedence() {
+            println!("parse_expression loop: {:?}", self.cur_token);
+            if let Some(operator) = self.parse_infix_operator() {
+                eprintln!("operator: {:?}", operator);
+                let infix = self.parse_infix_expression(left, operator)?;
+                left = infix;
+            } else {
+                eprintln!("no operator found");
+                break;
+            }
+        }
 
-        match prefix {
-            Some(prefix) => {
-                let mut left_expression = prefix(self)?;
+        Ok(left)
+    }
 
-                while !self.peek_token_is(Token::Semicolon) && precedence < self.peek_precedence() {
-                    let infix = self.infix_parse_fns.get(&self.peek_token).cloned();
+    fn parse_prefix_expression(&mut self) -> Result<Expression, ParserError> {
+        match self.cur_token.clone() {
+            Token::Int(i) => Ok(Expression::Int(IntegerLiteral { value: i })),
+            Token::String(s) => Ok(Expression::String(StringLiteral { value: s })),
+            Token::Identifier(s) => Ok(Expression::Identifier(IdentifierLiteral { value: s })),
+            Token::True => Ok(Expression::Boolean(BooleanLiteral { value: true })),
+            Token::False => Ok(Expression::Boolean(BooleanLiteral { value: false })),
+            Token::None => Ok(Expression::NoneLiteral),
+            Token::LParen => {
+                self.next_token();
 
-                    if let Some(infix) = infix {
-                        self.next_token();
-                        left_expression = infix(self, left_expression)?;
-                    } else {
-                        break;
-                    }
+                let expression = self.parse_expression(Precedence::Lowest)?;
+
+                if !self.peek_token_is(Token::RParen) {
+                    return Err(ParserError::FoundOtherThanExpectedToken {
+                        expected: Amount::One(ParserExpectation::Token(Token::RParen)),
+                        found: ParserExpectation::Token(self.peek_token.clone()),
+                    });
                 }
 
-                Ok(left_expression)
+                self.next_token();
+
+                Ok(expression)
             }
-            None => Err(ParserError::NoPrefixParseFnFound {
+            Token::Bang | Token::Minus => {
+                let operator = match self.cur_token.clone() {
+                    Token::Bang => PrefixOperator::Bang,
+                    Token::Minus => PrefixOperator::Minus,
+                    _ => unreachable!(),
+                };
+
+                self.next_token();
+
+                let right = self.parse_expression(Precedence::Prefix)?;
+
+                Ok(Expression::Prefix(PrefixExpression {
+                    operator,
+                    right: Box::new(right),
+                }))
+            }
+            Token::If => Ok(Expression::If(self.parse_if_expression()?)),
+            Token::Function => Ok(Expression::Function(self.parse_function_literal()?)),
+            Token::LBracket => {
+                let elements = self.parse_expression_list(Token::RBracket)?;
+                Ok(Expression::Array(ArrayLiteral { elements }))
+            }
+            _ => Err(ParserError::NoPrefixParseFnFound {
                 token: self.cur_token.clone(),
             }),
         }
     }
 
-    fn parse_prefix_expression(&mut self) -> Result<Expression, ParserError> {
-        let operator = match self.cur_token.clone() {
-            Token::Bang => PrefixOperator::Bang,
-            Token::Minus => PrefixOperator::Minus,
-            other_token => {
-                return Err(ParserError::FoundOtherThanExpectedToken {
-                    expected: NodeExpectation::One(Node::Operator(Operator::Prefix)),
-                    found: Node::Token(other_token),
-                })
-            }
-        };
-
-        self.next_token();
-
-        let right = self.parse_expression(Precedence::Prefix)?;
-
-        Ok(Expression::Prefix(PrefixExpression {
-            operator,
-            right: Box::new(right),
-        }))
-    }
-
-    fn parse_infix_expression(&mut self, left: Expression) -> Result<Expression, ParserError> {
-        let operator = match self.cur_token.clone() {
-            Token::Plus => InfixOperator::Plus,
-            Token::Minus => InfixOperator::Minus,
-            Token::Asterisk => InfixOperator::Asterisk,
+    fn parse_infix_operator(&mut self) -> Option<InfixOperator> {
+        match self.peek_token.clone() {
+            Token::Plus => Some(InfixOperator::Plus),
+            Token::Minus => Some(InfixOperator::Minus),
+            Token::Asterisk => Some(InfixOperator::Asterisk),
             Token::Slash => {
                 if self.peek_token_is(Token::Slash) {
                     self.next_token();
-                    InfixOperator::DoubleSlash
+                    Some(InfixOperator::DoubleSlash)
                 } else {
-                    InfixOperator::Slash
+                    Some(InfixOperator::Slash)
                 }
             }
-            Token::Eq => InfixOperator::Equal,
-            Token::NotEq => InfixOperator::NotEqual,
-            Token::Lt => InfixOperator::LessThan,
-            Token::Gt => InfixOperator::GreaterThan,
-            Token::Percent => InfixOperator::Percent,
-            Token::DoubleAmpersand => InfixOperator::DoubleAmpersand,
-            Token::DoublePipe => InfixOperator::DoublePipe,
-            other_token => {
-                return Err(ParserError::FoundOtherThanExpectedToken {
-                    expected: NodeExpectation::One(Node::Operator(Operator::Infix)),
-                    found: Node::Token(other_token),
-                })
+            Token::Eq => Some(InfixOperator::Equal),
+            Token::NotEq => Some(InfixOperator::NotEqual),
+            Token::Lt => Some(InfixOperator::LessThan),
+            Token::Gt => Some(InfixOperator::GreaterThan),
+            Token::Percent => Some(InfixOperator::Percent),
+            Token::DoubleAmpersand => Some(InfixOperator::DoubleAmpersand),
+            Token::DoublePipe => Some(InfixOperator::DoublePipe),
+            Token::LParen => Some(InfixOperator::LParen),
+            Token::LBracket => Some(InfixOperator::LBracket),
+            _ => None,
+        }
+    }
+
+    fn parse_infix_expression(
+        &mut self,
+        left: Expression,
+        operator: InfixOperator,
+    ) -> Result<Expression, ParserError> {
+        eprintln!("parse_infix_expression: {:?}", operator);
+
+        match operator {
+            InfixOperator::LParen => {
+                let arguments = self.parse_expression_list(Token::RParen)?;
+                return Ok(Expression::Call(CallExpression {
+                    left: Box::new(left),
+                    arguments,
+                }));
             }
-        };
+            InfixOperator::LBracket => {
+                let precedence = self.cur_precedence();
+                self.next_token();
+                let right = self.parse_expression(precedence)?;
+                self.expect_peek(Token::RBracket)?;
+                return Ok(Expression::Index(IndexExpression {
+                    left: Box::new(left),
+                    index: Box::new(right),
+                }));
+            }
+            _ => {}
+        }
 
         let precedence = self.cur_precedence();
         self.next_token();
@@ -394,67 +401,7 @@ impl Parser {
         }))
     }
 
-    fn parse_identifier_literal(&mut self) -> Result<Expression, ParserError> {
-        match self.cur_token.clone() {
-            Token::Identifier(ref identifier) => Ok(Expression::Identifier(IdentifierLiteral {
-                value: identifier.clone(),
-            })),
-            _ => unreachable!("parse_identifier_literal called only ever be invoked when current token is Identifier"),
-        }
-    }
-
-    fn parse_interger_literal(&mut self) -> Result<Expression, ParserError> {
-        match self.cur_token.clone() {
-            Token::Int(value) => Ok(Expression::Int(IntegerLiteral { value })),
-            _ => unreachable!(
-                "parse_interger_literal called only ever be invoked when current token is Int"
-            ),
-        }
-    }
-
-    fn parse_boolean_literal(&mut self) -> Result<Expression, ParserError> {
-        match self.cur_token.clone() {
-            Token::True => Ok(Expression::Boolean(BooleanLiteral { value: true })),
-            Token::False => Ok(Expression::Boolean(BooleanLiteral { value: false })),
-            _ => unreachable!("parse_boolean_literal called only ever be invoked when current token is True or False"),
-        }
-    }
-
-    fn parse_string_literal(&mut self) -> Result<Expression, ParserError> {
-        match self.cur_token.clone() {
-            Token::String(value) => Ok(Expression::String(StringLiteral { value })),
-            _ => unreachable!(
-                "parse_string_literal called only ever be invoked when current token is String"
-            ),
-        }
-    }
-
-    fn parse_none_literal(&mut self) -> Result<Expression, ParserError> {
-        match self.cur_token.clone() {
-            Token::None => Ok(Expression::NoneLiteral),
-            _ => unreachable!(
-                "parse_none_literal called only ever be invoked when current token is None"
-            ),
-        }
-    }
-
-    fn parse_array_literal(&mut self) -> Result<Expression, ParserError> {
-        let elements = self.parse_expression_list(Token::RBracket)?;
-
-        Ok(Expression::Array(ArrayLiteral { elements }))
-    }
-
-    fn parse_grouped_expression(&mut self) -> Result<Expression, ParserError> {
-        self.next_token();
-
-        let expression = self.parse_expression(Precedence::Lowest)?;
-
-        self.expect_peek(Token::RParen)?;
-
-        Ok(expression)
-    }
-
-    fn parse_if_expression(&mut self) -> Result<Expression, ParserError> {
+    fn parse_if_expression(&mut self) -> Result<IfExpression, ParserError> {
         self.expect_peek(Token::LParen)?;
 
         self.next_token();
@@ -464,52 +411,28 @@ impl Parser {
         self.expect_peek(Token::RParen)?;
         self.expect_peek(Token::LBrace)?;
 
-        let consequence = match self.parse_block_expression()? {
-            Expression::Block(body) => Ok(body),
-            other_expression => {
-                return Err(ParserError::FoundOtherThanExpectedToken {
-                    expected: NodeExpectation::One(Node::Expression(Expression::Block(
-                        BlockExpression {
-                            statements: Vec::new(),
-                        },
-                    ))),
-                    found: Node::Expression(other_expression),
-                })
-            }
-        }?;
+        let consequence = self.parse_block_expression()?;
 
         if self.peek_token_is(Token::Else) {
             self.next_token();
             self.expect_peek(Token::LBrace)?;
-            let alternative = match self.parse_block_expression()? {
-                Expression::Block(body) => Ok(Some(body)),
-                other_expression => {
-                    return Err(ParserError::FoundOtherThanExpectedToken {
-                        expected: NodeExpectation::One(Node::Expression(Expression::Block(
-                            BlockExpression {
-                                statements: Vec::new(),
-                            },
-                        ))),
-                        found: Node::Expression(other_expression),
-                    })
-                }
-            }?;
+            let alternative = self.parse_block_expression()?;
 
-            Ok(Expression::If(IfExpression {
+            Ok(IfExpression {
                 condition: Box::new(condition),
                 consequence,
-                alternative,
-            }))
+                alternative: Some(alternative),
+            })
         } else {
-            Ok(Expression::If(IfExpression {
+            Ok(IfExpression {
                 condition: Box::new(condition),
                 consequence,
                 alternative: None,
-            }))
+            })
         }
     }
 
-    fn parse_block_expression(&mut self) -> Result<Expression, ParserError> {
+    fn parse_block_expression(&mut self) -> Result<BlockExpression, ParserError> {
         let mut statements = Vec::new();
 
         self.next_token();
@@ -523,31 +446,20 @@ impl Parser {
             self.next_token();
         }
 
-        Ok(Expression::Block(BlockExpression { statements }))
+        Ok(BlockExpression { statements })
     }
 
-    fn parse_function_literal(&mut self) -> Result<Expression, ParserError> {
+    fn parse_function_literal(&mut self) -> Result<FunctionLiteral, ParserError> {
         self.expect_peek(Token::LParen)?;
 
         let parameters = self.parse_function_parameters()?;
 
         self.expect_peek(Token::LBrace)?;
 
-        match self.parse_block_expression()? {
-            Expression::Block(body) => {
-                Ok(Expression::Function(FunctionLiteral { parameters, body }))
-            }
-            other_expression => {
-                return Err(ParserError::FoundOtherThanExpectedToken {
-                    expected: NodeExpectation::One(Node::Expression(Expression::Block(
-                        BlockExpression {
-                            statements: Vec::new(),
-                        },
-                    ))),
-                    found: Node::Expression(other_expression),
-                })
-            }
-        }
+        Ok(FunctionLiteral {
+            parameters,
+            body: self.parse_block_expression()?,
+        })
     }
 
     fn parse_function_parameters(&mut self) -> Result<Vec<IdentifierLiteral>, ParserError> {
@@ -564,8 +476,10 @@ impl Parser {
             Token::Identifier(identifier) => identifier,
             other_token => {
                 return Err(ParserError::FoundOtherThanExpectedToken {
-                    expected: NodeExpectation::One(Node::Token(Token::Identifier(String::new()))),
-                    found: Node::Token(other_token),
+                    expected: Amount::One(ParserExpectation::Token(Token::Identifier(
+                        String::new(),
+                    ))),
+                    found: ParserExpectation::Token(other_token),
                 })
             }
         };
@@ -580,10 +494,10 @@ impl Parser {
                 Token::Identifier(identifier) => identifier,
                 other_token => {
                     return Err(ParserError::FoundOtherThanExpectedToken {
-                        expected: NodeExpectation::One(Node::Token(Token::Identifier(
+                        expected: Amount::One(ParserExpectation::Token(Token::Identifier(
                             String::new(),
                         ))),
-                        found: Node::Token(other_token),
+                        found: ParserExpectation::Token(other_token),
                     })
                 }
             };
@@ -594,15 +508,6 @@ impl Parser {
         self.expect_peek(Token::RParen)?;
 
         Ok(identifiers)
-    }
-
-    fn parse_call_expression(&mut self, left: Expression) -> Result<Expression, ParserError> {
-        let arguments = self.parse_expression_list(Token::RParen)?;
-
-        Ok(Expression::Call(CallExpression {
-            left: Box::new(left),
-            arguments,
-        }))
     }
 
     fn parse_expression_list(&mut self, end: Token) -> Result<Vec<Expression>, ParserError> {
@@ -631,19 +536,6 @@ impl Parser {
         self.expect_peek(end)?;
 
         Ok(arguments)
-    }
-
-    fn parse_index_expression(&mut self, left: Expression) -> Result<Expression, ParserError> {
-        self.next_token();
-
-        let index = self.parse_expression(Precedence::Lowest)?;
-
-        self.expect_peek(Token::RBracket)?;
-
-        Ok(Expression::Index(IndexExpression {
-            left: Box::new(left),
-            index: Box::new(index),
-        }))
     }
 }
 
@@ -1296,24 +1188,24 @@ mod tests {
                 (
                     "let x = 5",
                     vec![ParserError::FoundOtherThanExpectedToken {
-                        expected: NodeExpectation::One(Node::Token(Token::Semicolon)),
-                        found: Node::Token(Token::EOF),
+                        expected: Amount::One(ParserExpectation::Token(Token::Semicolon)),
+                        found: ParserExpectation::Token(Token::EOF),
                     }],
                 ),
                 (
                     "let x 5;",
                     vec![ParserError::FoundOtherThanExpectedToken {
-                        expected: NodeExpectation::One(Node::Token(Token::Assign)),
-                        found: Node::Token(Token::Int(5)),
+                        expected: Amount::One(ParserExpectation::Token(Token::Assign)),
+                        found: ParserExpectation::Token(Token::Int(5)),
                     }],
                 ),
                 (
                     "let 5 = 5;",
                     vec![ParserError::FoundOtherThanExpectedToken {
-                        expected: NodeExpectation::One(Node::Token(Token::Identifier(
+                        expected: Amount::One(ParserExpectation::Token(Token::Identifier(
                             String::new(),
                         ))),
-                        found: Node::Token(Token::Int(5)),
+                        found: ParserExpectation::Token(Token::Int(5)),
                     }],
                 ),
             ];
@@ -1326,8 +1218,8 @@ mod tests {
             let pairs = vec![(
                 "return 5",
                 vec![ParserError::FoundOtherThanExpectedToken {
-                    expected: NodeExpectation::One(Node::Token(Token::Semicolon)),
-                    found: Node::Token(Token::EOF),
+                    expected: Amount::One(ParserExpectation::Token(Token::Semicolon)),
+                    found: ParserExpectation::Token(Token::EOF),
                 }],
             )];
 
@@ -1364,8 +1256,8 @@ mod tests {
                 (
                     "((5 + 5);",
                     vec![ParserError::FoundOtherThanExpectedToken {
-                        expected: NodeExpectation::One(Node::Token(Token::RParen)),
-                        found: Node::Token(Token::Semicolon),
+                        expected: Amount::One(ParserExpectation::Token(Token::RParen)),
+                        found: ParserExpectation::Token(Token::Semicolon),
                     }],
                 ),
                 (
@@ -1377,8 +1269,8 @@ mod tests {
                 (
                     "((5 + 5)",
                     vec![ParserError::FoundOtherThanExpectedToken {
-                        expected: NodeExpectation::One(Node::Token(Token::RParen)),
-                        found: Node::Token(Token::EOF),
+                        expected: Amount::One(ParserExpectation::Token(Token::RParen)),
+                        found: ParserExpectation::Token(Token::EOF),
                     }],
                 ),
             ];
@@ -1401,8 +1293,8 @@ mod tests {
             let pairs = vec![(
                 "if (true) { return; } else",
                 vec![ParserError::FoundOtherThanExpectedToken {
-                    expected: NodeExpectation::One(Node::Token(Token::LBrace)),
-                    found: Node::Token(Token::EOF),
+                    expected: Amount::One(ParserExpectation::Token(Token::LBrace)),
+                    found: ParserExpectation::Token(Token::EOF),
                 }],
             )];
 
@@ -1415,33 +1307,33 @@ mod tests {
                 (
                     "fn()",
                     vec![ParserError::FoundOtherThanExpectedToken {
-                        expected: NodeExpectation::One(Node::Token(Token::LBrace)),
-                        found: Node::Token(Token::EOF),
+                        expected: Amount::One(ParserExpectation::Token(Token::LBrace)),
+                        found: ParserExpectation::Token(Token::EOF),
                     }],
                 ),
                 (
                     "fn(,x) { return; }",
                     vec![ParserError::FoundOtherThanExpectedToken {
-                        expected: NodeExpectation::One(Node::Token(Token::Identifier(
+                        expected: Amount::One(ParserExpectation::Token(Token::Identifier(
                             String::new(),
                         ))),
-                        found: Node::Token(Token::Comma),
+                        found: ParserExpectation::Token(Token::Comma),
                     }],
                 ),
                 (
                     "fn(x,) { return x; }",
                     vec![ParserError::FoundOtherThanExpectedToken {
-                        expected: NodeExpectation::One(Node::Token(Token::Identifier(
+                        expected: Amount::One(ParserExpectation::Token(Token::Identifier(
                             String::new(),
                         ))),
-                        found: Node::Token(Token::RParen),
+                        found: ParserExpectation::Token(Token::RParen),
                     }],
                 ),
                 (
                     "fn(x, y { return x+y; }",
                     vec![ParserError::FoundOtherThanExpectedToken {
-                        expected: NodeExpectation::One(Node::Token(Token::RParen)),
-                        found: Node::Token(Token::LBrace),
+                        expected: Amount::One(ParserExpectation::Token(Token::RParen)),
+                        found: ParserExpectation::Token(Token::LBrace),
                     }],
                 ),
             ];
@@ -1455,8 +1347,8 @@ mod tests {
                 (
                     "add(1, 2, 3",
                     vec![ParserError::FoundOtherThanExpectedToken {
-                        expected: NodeExpectation::One(Node::Token(Token::RParen)),
-                        found: Node::Token(Token::EOF),
+                        expected: Amount::One(ParserExpectation::Token(Token::RParen)),
+                        found: ParserExpectation::Token(Token::EOF),
                     }],
                 ),
                 (
@@ -1476,8 +1368,8 @@ mod tests {
                 (
                     "[1, 2, 3",
                     vec![ParserError::FoundOtherThanExpectedToken {
-                        expected: NodeExpectation::One(Node::Token(Token::RBracket)),
-                        found: Node::Token(Token::EOF),
+                        expected: Amount::One(ParserExpectation::Token(Token::RBracket)),
+                        found: ParserExpectation::Token(Token::EOF),
                     }],
                 ),
                 (

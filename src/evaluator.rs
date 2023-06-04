@@ -484,6 +484,8 @@ impl Node for InfixExpression {
                     },
                 ))),
             },
+            InfixOperator::LBracket => unreachable!("Parser shoud generate a CallExpression"),
+            InfixOperator::LParen => unreachable!("Parser shoud generate a CallExpression"),
         }
     }
 }
