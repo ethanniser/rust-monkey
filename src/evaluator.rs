@@ -509,15 +509,14 @@ pub fn test_eval(input: String) -> Result<Rc<Object>, EvalError> {
     return program.eval(env);
 }
 
-pub fn test_vs_code(pairs: Vec<(&str, Result<Object, EvalError>)>) {
+pub fn test_vs_expectation(pairs: Vec<(&str, Result<Object, EvalError>)>) {
     for (input, expectation) in pairs.iter() {
         let ref program_result = match test_eval(input.to_string()) {
-            Ok(object) => match Rc::try_unwrap(object).ok() {
-                Some(object) => Ok(object),
-                None => panic!("object is not unique"),
-            },
+            Ok(object) => Ok((*object).clone()),
             Err(error) => Err(error),
         };
+        eprintln!("input: {:?}", input);
+        eprintln!("expectation: {:?}", expectation);
         assert_eq!(program_result, expectation);
     }
 }
@@ -530,7 +529,7 @@ mod tests {
     #[test]
     fn integer_literal() {
         let pairs = vec![("5", Ok(Object::Integer(5)))];
-        test_vs_code(pairs);
+        test_vs_expectation(pairs);
     }
 
     #[test]
@@ -539,7 +538,7 @@ mod tests {
             ("true", Ok(Object::Boolean(true))),
             ("false", Ok(Object::Boolean(false))),
         ];
-        test_vs_code(pairs);
+        test_vs_expectation(pairs);
     }
 
     #[test]
@@ -552,7 +551,7 @@ mod tests {
             ("!!false", Ok(Object::Boolean(false))),
             ("!!5", Ok(Object::Boolean(true))),
         ];
-        test_vs_code(pairs);
+        test_vs_expectation(pairs);
     }
 
     #[test]
@@ -561,7 +560,7 @@ mod tests {
             ("-5", Ok(Object::Integer(-5))),
             ("--5", Ok(Object::Integer(5))),
         ];
-        test_vs_code(pairs);
+        test_vs_expectation(pairs);
     }
 
     #[test]
@@ -579,7 +578,7 @@ mod tests {
             ("3 * (3 * 3) + 10", Ok(Object::Integer(37))),
             ("(5 + 10 * 2 + 15 / 3) * 2 + -10", Ok(Object::Integer(50))),
         ];
-        test_vs_code(pairs);
+        test_vs_expectation(pairs);
     }
 
     #[test]
@@ -605,7 +604,7 @@ mod tests {
             ("(1 > 2) == true", Ok(Object::Boolean(false))),
             ("(1 > 2) == false", Ok(Object::Boolean(true))),
         ];
-        test_vs_code(pairs);
+        test_vs_expectation(pairs);
     }
 
     #[test]
@@ -614,7 +613,7 @@ mod tests {
             ("if (1 > 2) { 10 } else { 20 }", Ok(Object::Integer(20))),
             ("if (1 < 2) { 10 } else { 20 }", Ok(Object::Integer(10))),
         ];
-        test_vs_code(pairs);
+        test_vs_expectation(pairs);
     }
 
     #[test]
@@ -635,7 +634,7 @@ mod tests {
                 Ok(Object::Integer(10)),
             ),
         ];
-        test_vs_code(pairs);
+        test_vs_expectation(pairs);
     }
 
     #[test]
@@ -646,7 +645,7 @@ mod tests {
             ("none == false", Ok(Object::Boolean(false))),
         ];
 
-        test_vs_code(pairs);
+        test_vs_expectation(pairs);
     }
 
     #[test]
@@ -660,7 +659,7 @@ mod tests {
                 Ok(Object::Integer(15)),
             ),
         ];
-        test_vs_code(pairs);
+        test_vs_expectation(pairs);
     }
 
     #[test]
@@ -685,7 +684,7 @@ mod tests {
                 env: Environment::new(),
             })),
         )];
-        test_vs_code(pairs);
+        test_vs_expectation(pairs);
     }
 
     #[test]
@@ -713,7 +712,7 @@ mod tests {
             ),
             ("fn(x) { x }(5)", Ok(Object::Integer(5))),
         ];
-        test_vs_code(pairs);
+        test_vs_expectation(pairs);
     }
 
     #[test]
@@ -729,7 +728,7 @@ mod tests {
             ",
             Ok(Object::Integer(4)),
         )];
-        test_vs_code(pairs);
+        test_vs_expectation(pairs);
     }
 
     #[test]
@@ -746,7 +745,7 @@ mod tests {
             ),
         ];
 
-        test_vs_code(pairs);
+        test_vs_expectation(pairs);
     }
 
     #[test]
@@ -757,7 +756,7 @@ mod tests {
             ("let a = 5; let b = a; a = 10; b", Ok(Object::Integer(5))),
         ];
 
-        test_vs_code(pairs);
+        test_vs_expectation(pairs);
     }
 
     #[test]
@@ -771,7 +770,7 @@ mod tests {
             ])),
         )];
 
-        test_vs_code(pairs);
+        test_vs_expectation(pairs);
     }
 
     #[test]
@@ -813,7 +812,7 @@ mod tests {
             ),
         ];
 
-        test_vs_code(pairs);
+        test_vs_expectation(pairs);
     }
 
     #[test]
@@ -841,7 +840,7 @@ mod tests {
             ),
         ];
 
-        test_vs_code(pairs);
+        test_vs_expectation(pairs);
     }
 
     mod errors {
@@ -865,7 +864,7 @@ mod tests {
                 ))),
             )];
 
-            test_vs_code(pairs);
+            test_vs_expectation(pairs);
         }
 
         #[test]
@@ -880,7 +879,7 @@ mod tests {
                 ))),
             )];
 
-            test_vs_code(pairs);
+            test_vs_expectation(pairs);
         }
 
         #[test]
@@ -908,7 +907,7 @@ mod tests {
                 ),
             ];
 
-            test_vs_code(pairs);
+            test_vs_expectation(pairs);
         }
 
         #[test]
@@ -931,7 +930,7 @@ mod tests {
                 ))),
             )];
 
-            test_vs_code(pairs);
+            test_vs_expectation(pairs);
         }
 
         #[test]
@@ -941,7 +940,7 @@ mod tests {
                 Err(EvalError::UnknownIdentifier("foobar".to_string())),
             )];
 
-            test_vs_code(pairs);
+            test_vs_expectation(pairs);
         }
 
         #[test]
@@ -952,7 +951,7 @@ mod tests {
                 ",
                 Err(EvalError::CallOnNonFunction(Rc::new(Object::Integer(5)))),
             )];
-            test_vs_code(pairs);
+            test_vs_expectation(pairs);
         }
 
         #[test]
@@ -967,7 +966,7 @@ mod tests {
                 ))),
             )];
 
-            test_vs_code(pairs);
+            test_vs_expectation(pairs);
         }
     }
 }

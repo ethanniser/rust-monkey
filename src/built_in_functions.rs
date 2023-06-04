@@ -160,18 +160,22 @@ let reduce = fn(arr, initial, f) {
 ";
 
 pub fn get_initial_env() -> Env {
-    let lexer = Lexer::new(STD_LIB.to_string());
-    let mut parser = Parser::new(lexer);
-    let program = parser.parse_program();
     let env = Environment::blank();
-
     for (name, function) in BUILT_IN_FUNCTIONS {
         env.borrow_mut()
             .store
             .insert(name.to_string(), Rc::new(Object::BuiltIn(function)));
     }
-    program.eval(&env).expect("std lib code shoudnt error");
+    initialize_env_with_std(&env);
     env
+}
+
+pub fn initialize_env_with_std(env: &Env) {
+    let ref env = Environment::new_enclosed(env);
+    let lexer = Lexer::new(STD_LIB.to_string());
+    let mut parser = Parser::new(lexer);
+    let program = parser.parse_program();
+    program.eval(env).expect("std lib code shoudnt error");
 }
 
 fn len(args: Vec<Rc<Object>>) -> Result<Rc<Object>, BuiltInFunctionError> {
@@ -352,7 +356,7 @@ fn push(args: Vec<Rc<Object>>) -> Result<Rc<Object>, BuiltInFunctionError> {
 #[cfg(test)]
 mod tests {
 
-    use crate::evaluator::{test_vs_code, EvalError};
+    use crate::evaluator::{test_vs_expectation, EvalError};
 
     use super::*;
 
@@ -397,7 +401,7 @@ mod tests {
             ("len([1, 2, 3])", Ok(Object::Integer(3))),
         ];
 
-        test_vs_code(pairs);
+        test_vs_expectation(pairs);
     }
 
     #[test]
@@ -421,7 +425,7 @@ mod tests {
             ),
         ];
 
-        test_vs_code(pairs);
+        test_vs_expectation(pairs);
     }
 
     #[test]
@@ -445,7 +449,7 @@ mod tests {
             ),
         ];
 
-        test_vs_code(pairs);
+        test_vs_expectation(pairs);
     }
 
     #[test]
@@ -475,7 +479,7 @@ mod tests {
             ),
         ];
 
-        test_vs_code(pairs);
+        test_vs_expectation(pairs);
     }
 
     #[test]
@@ -505,6 +509,6 @@ mod tests {
             ),
         ];
 
-        test_vs_code(pairs);
+        test_vs_expectation(pairs);
     }
 }
