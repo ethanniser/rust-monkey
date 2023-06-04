@@ -2,8 +2,8 @@ use std::{fmt::Display, rc::Rc};
 
 use crate::{
     ast::{BlockExpression, FunctionLiteral, IdentifierLiteral},
+    built_in_functions::BuiltInFunction,
     environment::Env,
-    evaluator::BuiltInFunction,
 };
 
 #[derive(Debug, PartialEq, Clone)]

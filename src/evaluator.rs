@@ -2,8 +2,11 @@ use std::fmt::Display;
 use std::rc::Rc;
 
 use crate::ast::*;
+use crate::built_in_functions::*;
 use crate::environment::{Env, Environment};
+use crate::lexer::Lexer;
 use crate::object::{Function, Object};
+use crate::parser::Parser;
 
 #[derive(Debug, PartialEq)]
 pub struct PrefixMismatch {
@@ -491,40 +494,38 @@ impl Node for Program {
     }
 }
 
+pub fn test_eval(input: String) -> Result<Rc<Object>, EvalError> {
+    let lexer = Lexer::new(input.clone());
+    let mut parser = Parser::new(lexer);
+    let program = parser.parse_program();
+    if !parser.errors.is_empty() {
+        eprintln!("parsing error for input: \"{input}\"");
+        for error in parser.errors.iter() {
+            eprintln!("ERROR: {}", error);
+        }
+        eprintln!();
+    }
+    let ref env = Environment::new();
+    return program.eval(env);
+}
+
+pub fn test_vs_code(pairs: Vec<(&str, Result<Object, EvalError>)>) {
+    for (input, expectation) in pairs.iter() {
+        let ref program_result = match test_eval(input.to_string()) {
+            Ok(object) => match Rc::try_unwrap(object).ok() {
+                Some(object) => Ok(object),
+                None => panic!("object is not unique"),
+            },
+            Err(error) => Err(error),
+        };
+        assert_eq!(program_result, expectation);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lexer::Lexer;
     use crate::object::Function;
-    use crate::parser::Parser;
-
-    fn test_eval(input: String) -> Result<Rc<Object>, EvalError> {
-        let lexer = Lexer::new(input.clone());
-        let mut parser = Parser::new(lexer);
-        let program = parser.parse_program();
-        if !parser.errors.is_empty() {
-            eprintln!("parsing error for input: \"{input}\"");
-            for error in parser.errors.iter() {
-                eprintln!("ERROR: {}", error);
-            }
-            eprintln!();
-        }
-        let ref env = Environment::new();
-        return program.eval(env);
-    }
-
-    pub fn test_vs_code(pairs: Vec<(&str, Result<Object, EvalError>)>) {
-        for (input, expectation) in pairs.iter() {
-            let ref program_result = match test_eval(input.to_string()) {
-                Ok(object) => match Rc::try_unwrap(object).ok() {
-                    Some(object) => Ok(object),
-                    None => panic!("object is not unique"),
-                },
-                Err(error) => Err(error),
-            };
-            assert_eq!(program_result, expectation);
-        }
-    }
 
     #[test]
     fn integer_literal() {
@@ -965,204 +966,6 @@ mod tests {
                     },
                 ))),
             )];
-
-            test_vs_code(pairs);
-        }
-    }
-}
-
-pub use built_in_functions::*;
-
-pub mod built_in_functions {
-    use super::*;
-    use std::fmt::Formatter;
-
-    pub type BuiltInFunctionType = fn(Vec<Rc<Object>>) -> Result<Rc<Object>, BuiltInFunctionError>;
-
-    #[derive(Debug, PartialEq)]
-    pub struct BuiltInFunctionError {
-        pub function: BuiltInFunction,
-        pub error: BIFInnerError,
-        pub message: Option<String>,
-    }
-
-    impl Display for BuiltInFunctionError {
-        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-            let preface = format!("Error in built in function '{}': ", self.function);
-            let error = match &self.error {
-                BIFInnerError::WrongNumberOfArguments { expected, got } => format!(
-                    "Wrong number of arguments. Expected {}, got {}",
-                    expected, got
-                ),
-                BIFInnerError::WrongArgumentType { expected, got } => {
-                    format!(
-                        "Wrong argument type. Expected: {}. Got: {}",
-                        expected,
-                        got.to_type()
-                    )
-                }
-            };
-            let message = match self.message.clone() {
-                Some(message) => format!("\n{}", message),
-                None => "".to_string(),
-            };
-
-            write!(f, "{}{}{}", preface, error, message)
-        }
-    }
-
-    #[derive(Debug, PartialEq)]
-    pub enum BIFInnerError {
-        WrongNumberOfArguments {
-            expected: usize,
-            got: usize,
-        },
-        WrongArgumentType {
-            expected: ObjectExpectation,
-            got: Rc<Object>,
-        },
-    }
-
-    #[derive(Debug, PartialEq)]
-    pub enum ObjectExpectation {
-        One(Rc<Object>),
-        Many(Vec<Rc<Object>>),
-    }
-
-    impl Display for ObjectExpectation {
-        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-            match self {
-                ObjectExpectation::One(object) => write!(f, "{}", object.to_type()),
-                ObjectExpectation::Many(objects) => {
-                    let type_union = objects
-                        .iter()
-                        .map(|o| o.to_type())
-                        .collect::<Vec<_>>()
-                        .join(" | ");
-                    write!(f, "{}", type_union)
-                }
-            }
-        }
-    }
-
-    #[derive(Debug, PartialEq, Clone)]
-    pub struct BuiltInFunction {
-        pub function: BuiltInFunctionType,
-        type_signature: &'static str,
-    }
-
-    impl Display for BuiltInFunction {
-        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-            write!(f, "{}", self.type_signature)
-        }
-    }
-
-    pub struct BuiltIns {
-        pub functions: Vec<(String, BuiltInFunction)>,
-    }
-
-    mod type_signatures {
-        pub const LEN: &str = "len(x: string | array) -> integer";
-    }
-
-    impl BuiltIns {
-        pub fn new() -> Self {
-            let functions = vec![(
-                "len".to_string(),
-                BuiltInFunction {
-                    function: len,
-                    type_signature: type_signatures::LEN,
-                },
-            )];
-
-            Self {
-                functions: functions,
-            }
-        }
-    }
-
-    fn len(args: Vec<Rc<Object>>) -> Result<Rc<Object>, BuiltInFunctionError> {
-        if args.len() != 1 {
-            return Err(BuiltInFunctionError {
-                error: BIFInnerError::WrongNumberOfArguments {
-                    expected: 1,
-                    got: args.len(),
-                },
-                function: BuiltInFunction {
-                    function: len,
-                    type_signature: type_signatures::LEN,
-                },
-                message: None,
-            });
-        }
-
-        match &*args[0] {
-            Object::String(s) => Ok(Rc::new(Object::Integer(s.len() as isize))),
-            Object::Array(a) => Ok(Rc::new(Object::Integer(a.len() as isize))),
-            _ => Err(BuiltInFunctionError {
-                error: BIFInnerError::WrongArgumentType {
-                    expected: ObjectExpectation::Many(vec![
-                        Rc::new(Object::String("".to_string())),
-                        Rc::new(Object::Array(vec![])),
-                    ]),
-                    got: args[0].clone(),
-                },
-                function: BuiltInFunction {
-                    function: len,
-                    type_signature: type_signatures::LEN,
-                },
-                message: None,
-            }),
-        }
-    }
-
-    #[cfg(test)]
-    mod tests {
-
-        use crate::evaluator::tests::test_vs_code;
-
-        use super::*;
-
-        #[test]
-        fn length() {
-            let pairs = vec![
-                (r#"len("")"#, Ok(Object::Integer(0))),
-                (r#"len("four")"#, Ok(Object::Integer(4))),
-                (r#"len("hello world")"#, Ok(Object::Integer(11))),
-                (
-                    r#"len("one", "two")"#,
-                    Err(EvalError::BuiltInFunction(BuiltInFunctionError {
-                        error: BIFInnerError::WrongNumberOfArguments {
-                            expected: 1,
-                            got: 2,
-                        },
-                        function: BuiltInFunction {
-                            function: len,
-                            type_signature: type_signatures::LEN,
-                        },
-                        message: None,
-                    })),
-                ),
-                (
-                    "len(5)",
-                    Err(EvalError::BuiltInFunction(BuiltInFunctionError {
-                        error: BIFInnerError::WrongArgumentType {
-                            expected: ObjectExpectation::Many(vec![
-                                Rc::new(Object::String("".to_string())),
-                                Rc::new(Object::Array(vec![])),
-                            ]),
-                            got: Rc::new(Object::Integer(5)),
-                        },
-                        function: BuiltInFunction {
-                            function: len,
-                            type_signature: type_signatures::LEN,
-                        },
-                        message: None,
-                    })),
-                ),
-                ("len([])", Ok(Object::Integer(0))),
-                ("len([1, 2, 3])", Ok(Object::Integer(3))),
-            ];
 
             test_vs_code(pairs);
         }

@@ -1,6 +1,7 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use crate::{evaluator::built_in_functions::BuiltIns, object::Object};
+use crate::built_in_functions::get_initial_env;
+use crate::object::Object;
 
 pub type Env = Rc<RefCell<Environment>>;
 
@@ -11,15 +12,15 @@ pub struct Environment {
 }
 
 impl Environment {
+    pub fn blank() -> Env {
+        Rc::new(RefCell::new(Self {
+            store: HashMap::new(),
+            outer: None,
+        }))
+    }
+
     pub fn new() -> Env {
-        let mut store = HashMap::new();
-        let BuiltIns { functions } = BuiltIns::new();
-
-        for (name, function) in functions {
-            store.insert(name, Rc::new(Object::BuiltIn(function)));
-        }
-
-        Rc::new(RefCell::new(Self { store, outer: None }))
+        get_initial_env()
     }
 
     pub fn new_enclosed(outer: &Env) -> Env {
