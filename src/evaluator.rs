@@ -292,14 +292,13 @@ impl Node for CallExpression {
             });
         }
 
-        let env = Environment::new_enclosed(&env);
+        parameters.iter().zip(args.iter()).for_each(|(param, arg)| {
+            (**env)
+                .borrow_mut()
+                .set(param.value.clone(), Rc::clone(arg))
+        });
 
-        parameters
-            .iter()
-            .zip(args.iter())
-            .for_each(|(param, arg)| env.borrow_mut().set(param.value.clone(), Rc::clone(arg)));
-
-        body.eval(&env)
+        body.eval(env)
     }
 }
 
@@ -308,7 +307,7 @@ impl Node for FunctionLiteral {
         Ok(Rc::new(Object::Function(Function {
             parameters: self.parameters.clone(),
             body: self.body.clone(),
-            env: Rc::clone(env),
+            env: Environment::new_enclosed(&env),
         })))
     }
 }

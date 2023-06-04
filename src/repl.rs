@@ -18,8 +18,8 @@ const MONKEY_FACE: &str = r#"         .-"-.
 pub fn start<R: BufRead, W: Write>(input: R, mut output: W) -> io::Result<()> {
     let mut lines = input.lines();
     let ref env = Environment::new();
-    // let std = get_std_ast();
-    // std.eval(env).unwrap();
+    let std = get_std_ast();
+    std.eval(env).unwrap();
     {
         let x = env.borrow();
         (*x).debug_print();
@@ -52,10 +52,6 @@ pub fn start<R: BufRead, W: Write>(input: R, mut output: W) -> io::Result<()> {
         }
 
         // writeln!(output, "<temp> parser output{:?}", program.statements)?;
-        {
-            let x = env.borrow();
-            (*x).debug_print();
-        }
 
         let evaluated = match program.eval(env) {
             Ok(evaluated) => evaluated,
@@ -67,9 +63,16 @@ pub fn start<R: BufRead, W: Write>(input: R, mut output: W) -> io::Result<()> {
                 continue;
             }
         };
+
+        {
+            let x = env.borrow();
+            (*x).debug_print();
+        }
+
         if let Object::None = *evaluated {
             continue;
         }
+
         writeln!(output, "{}", evaluated)?
     }
 }
