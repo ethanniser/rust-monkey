@@ -1,4 +1,4 @@
-use crate::environment::Environment;
+use crate::environment::{debug_scope, Environment};
 use crate::object::Object;
 use crate::parser::Parser;
 use crate::{evaluator::Node, lexer::Lexer};
@@ -18,7 +18,7 @@ pub fn start<R: BufRead, W: Write>(input: R, mut output: W) -> io::Result<()> {
     let mut lines = input.lines();
     let ref env = Environment::new();
 
-    // debug_scope(env, 0);
+    debug_scope(env, 0);
 
     // println!("{:?}", (*env).borrow().store);
 
@@ -61,12 +61,12 @@ pub fn start<R: BufRead, W: Write>(input: R, mut output: W) -> io::Result<()> {
             }
         };
 
-        // debug_scope(env, 0);
+        debug_scope(env, 0);
 
         if let Object::None = *evaluated {
             continue;
         }
 
-        writeln!(output, "{}", evaluated)?
+        writeln!(output, "{:?}", evaluated)?
     }
 }

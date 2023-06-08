@@ -692,7 +692,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
+    // #[ignore]
     fn function_object() {
         let pairs = vec![(
             "fn(x) { x + 2 }",
@@ -711,7 +711,7 @@ mod tests {
                         }),
                     ))],
                 },
-                env: Environment::new(),
+                env: Environment::new_enclosed(&Environment::new()),
             })),
         )];
         test_vs_expectation(pairs);

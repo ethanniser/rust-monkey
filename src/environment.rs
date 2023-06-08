@@ -28,11 +28,15 @@ impl std::fmt::Debug for Environment {
 }
 
 impl Environment {
-    pub fn new() -> Env {
-        let env = Rc::new(RefCell::new(Self {
+    pub fn blank() -> Env {
+        Rc::new(RefCell::new(Self {
             store: HashMap::new(),
             outer: None,
-        }));
+        }))
+    }
+
+    pub fn new() -> Env {
+        let env = Environment::blank();
         for (name, function) in BUILT_IN_FUNCTIONS {
             env.borrow_mut()
                 .store

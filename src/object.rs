@@ -71,9 +71,17 @@ impl Display for Object {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 pub struct Function {
     pub parameters: Vec<IdentifierLiteral>,
     pub body: BlockExpression,
     pub env: Env,
+}
+
+impl PartialEq for Function {
+    fn eq(&self, other: &Self) -> bool {
+        let envs_equal = self.env.borrow().store == other.env.borrow().store;
+        let rest_equal = self.parameters == other.parameters && self.body == other.body;
+        envs_equal && rest_equal
+    }
 }
