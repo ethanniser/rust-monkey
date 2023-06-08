@@ -16,7 +16,16 @@ const MONKEY_FACE: &str = r#"         .-"-.
     \ \_/`"""`\_/ /
      \           /"#;
 
-pub fn start<R: BufRead, W: Write + 'static>(input: R, output: W) -> io::Result<()> {
+pub fn start<R: BufRead, W: Write + 'static>(input: R, mut output: W) -> io::Result<()> {
+    writeln!(
+        output,
+        "Hello! This is the Monkey programming language, with some *personal modifications*"
+    )?;
+    writeln!(
+        output,
+        "Feel free to type in commands, and simply type \"exit\" to exit the REPL."
+    )?;
+
     let output = Rc::new(RefCell::new(output));
     let mut lines = input.lines();
     let ref env = Environment::new_with_output(Rc::clone(&output));
@@ -37,6 +46,10 @@ pub fn start<R: BufRead, W: Write + 'static>(input: R, output: W) -> io::Result<
             Some(Err(e)) => return Err(e),
             None => return Ok(()),
         };
+
+        if line == "exit" {
+            return Ok(());
+        }
 
         let lexer = Lexer::new(line);
 
