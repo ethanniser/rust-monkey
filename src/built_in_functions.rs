@@ -110,9 +110,10 @@ mod type_signatures {
     pub const REST: &str = "rest(x: array) -> array | none";
     pub const PUSH: &str = "push(x: array, y: any) -> array";
     pub const PUTS: &str = "puts(x: any) -> none";
+    pub const TYPE: &str = r#"type(x: any) -> "none" | "integer" | "boolean" | "string" | "function" | "array" | "hash""#;
 }
 
-pub const BUILT_IN_FUNCTIONS: [(&'static str, BuiltInFunction); 6] = [
+pub const BUILT_IN_FUNCTIONS: [(&'static str, BuiltInFunction); 7] = [
     (
         "len",
         BuiltInFunction {
@@ -153,6 +154,13 @@ pub const BUILT_IN_FUNCTIONS: [(&'static str, BuiltInFunction); 6] = [
         BuiltInFunction {
             function: puts,
             type_signature: type_signatures::PUTS,
+        },
+    ),
+    (
+        "type",
+        BuiltInFunction {
+            function: object_type,
+            type_signature: type_signatures::TYPE,
         },
     ),
 ];
@@ -207,6 +215,26 @@ pub fn instaniate_std_lib(env: &Env) {
     program
         .eval(env)
         .expect("std lib shouldnt fail to evaluate");
+}
+
+fn object_type(args: Vec<Rc<Object>>, _env: &Env) -> Result<Rc<Object>, BuiltInFunctionError> {
+    if args.len() != 1 {
+        return Err(BuiltInFunctionError {
+            error: BIFInnerError::WrongNumberOfArguments {
+                expected: 1,
+                got: args.len(),
+            },
+            function: BuiltInFunction {
+                function: len,
+                type_signature: type_signatures::LEN,
+            },
+            message: None,
+        });
+    }
+
+    let object = &*args[0];
+
+    Ok(Rc::new(Object::String(object.to_type())))
 }
 
 fn puts(args: Vec<Rc<Object>>, env: &Env) -> Result<Rc<Object>, BuiltInFunctionError> {
@@ -558,6 +586,25 @@ mod tests {
                     message: None,
                 })),
             ),
+        ];
+
+        test_vs_expectation(pairs);
+    }
+
+    #[test]
+    fn test_type() {
+        let pairs = vec![
+            ("type(1)", Ok(Object::String("integer".to_string()))),
+            ("type(\"test\")", Ok(Object::String("string".to_string()))),
+            ("type([])", Ok(Object::String("array".to_string()))),
+            ("type({5:3})", Ok(Object::String("hash".to_string()))),
+            (
+                "type(fn(x) { x })",
+                Ok(Object::String("function".to_string())),
+            ),
+            ("type(true)", Ok(Object::String("boolean".to_string()))),
+            ("type(false)", Ok(Object::String("boolean".to_string()))),
+            ("type(none)", Ok(Object::String("none".to_string()))),
         ];
 
         test_vs_expectation(pairs);

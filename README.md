@@ -1,3 +1,5 @@
 monkey interpreter in rust following the book https://interpreterbook.com/
 
-fyi: I made some small changes from the semantics of monkey from how the book handles things
+made some additions and modifications from the book, I was gonna list them but honestly I forgot what they were
+
+its pretty neat though
