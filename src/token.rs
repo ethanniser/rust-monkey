@@ -11,6 +11,7 @@ pub enum Token {
     Bang,
     Asterisk,
     Slash,
+    DoubleSlash,
     Lt,
     Gt,
     Eq,
@@ -76,6 +77,7 @@ impl PartialEq for Token {
             (Token::DoublePipe, Token::DoublePipe) => true,
             (Token::DoubleAmpersand, Token::DoubleAmpersand) => true,
             (Token::Colon, Token::Colon) => true,
+            (Token::DoubleSlash, Token::DoubleSlash) => true,
             _ => false,
         }
     }

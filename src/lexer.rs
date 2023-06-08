@@ -52,7 +52,14 @@ impl Lexer {
             '+' => Token::Plus,
             '-' => Token::Minus,
             '*' => Token::Asterisk,
-            '/' => Token::Slash,
+            '/' => {
+                if self.peek_char() == '/' {
+                    self.read_char();
+                    Token::DoubleSlash
+                } else {
+                    Token::Slash
+                }
+            }
             '<' => Token::Lt,
             '>' => Token::Gt,
             '%' => Token::Percent,
@@ -201,6 +208,8 @@ mod tests {
                     [1, 2]
                     {"foo": "bar"}
                     true && false || true
+                    5 / 3
+                    5 // 2
                     "#
         .to_string();
 
@@ -295,6 +304,12 @@ mod tests {
             Token::False,
             Token::DoublePipe,
             Token::True,
+            Token::Int(5),
+            Token::Slash,
+            Token::Int(3),
+            Token::Int(5),
+            Token::DoubleSlash,
+            Token::Int(2),
             Token::EOF,
         ];
 

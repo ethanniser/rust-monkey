@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-// use crate::built_in_functions::{instaniate_std_lib, BUILT_IN_FUNCTIONS};
+use crate::built_in_functions::{instaniate_std_lib, BUILT_IN_FUNCTIONS};
 use crate::object::Object;
 
 pub type Env = Rc<RefCell<Environment>>;
@@ -33,12 +33,12 @@ impl Environment {
             store: HashMap::new(),
             outer: None,
         }));
-        // for (name, function) in BUILT_IN_FUNCTIONS {
-        //     env.borrow_mut()
-        //         .store
-        //         .insert(name.to_string(), Rc::new(Object::BuiltIn(function)));
-        // }
-        // instaniate_std_lib(&env);
+        for (name, function) in BUILT_IN_FUNCTIONS {
+            env.borrow_mut()
+                .store
+                .insert(name.to_string(), Rc::new(Object::BuiltIn(function)));
+        }
+        instaniate_std_lib(&env);
         env
     }
 

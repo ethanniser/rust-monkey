@@ -121,10 +121,6 @@ impl Parser {
     fn next_token(&mut self) {
         self.cur_token = self.peek_token.clone();
         self.peek_token = self.lexer.next_token();
-        println!(
-            "cur_token: {:?}, peek_token: {:?}",
-            self.cur_token, self.peek_token
-        )
     }
 
     fn cur_token_is(&self, token: Token) -> bool {
@@ -172,7 +168,7 @@ impl Parser {
     }
 
     fn parse_statement(&mut self) -> Result<Statement, ParserError> {
-        match self.cur_token.clone() {
+        match self.cur_token {
             Token::Let => self.parse_let_statement(),
             Token::Return => self.parse_return_statement(),
             Token::Identifier(_) if self.peek_token_is(Token::Assign) => {
@@ -266,17 +262,15 @@ impl Parser {
         }
     }
 
+    // ! Expects current token to be beginning of expression
     fn parse_expression(&mut self, precedence: Precedence) -> Result<Expression, ParserError> {
         let mut left = self.parse_prefix_expression()?;
-        println!("parse_expression: {:?}", left);
         while !self.peek_token_is(Token::Semicolon) && precedence < self.peek_precedence() {
-            println!("parse_expression loop: {:?}", self.cur_token);
             if let Some(operator) = self.parse_infix_operator() {
-                eprintln!("operator: {:?}", operator);
+                self.next_token();
                 let infix = self.parse_infix_expression(left, operator)?;
                 left = infix;
             } else {
-                eprintln!("no operator found");
                 break;
             }
         }
@@ -284,6 +278,7 @@ impl Parser {
         Ok(left)
     }
 
+    // ! Expects left side of infix is current token
     fn parse_prefix_expression(&mut self) -> Result<Expression, ParserError> {
         match self.cur_token.clone() {
             Token::Int(i) => Ok(Expression::Int(IntegerLiteral { value: i })),
@@ -309,7 +304,7 @@ impl Parser {
                 Ok(expression)
             }
             Token::Bang | Token::Minus => {
-                let operator = match self.cur_token.clone() {
+                let operator = match self.cur_token {
                     Token::Bang => PrefixOperator::Bang,
                     Token::Minus => PrefixOperator::Minus,
                     _ => unreachable!(),
@@ -330,25 +325,24 @@ impl Parser {
                 let elements = self.parse_expression_list(Token::RBracket)?;
                 Ok(Expression::Array(ArrayLiteral { elements }))
             }
+            Token::LBrace => {
+                self.next_token();
+                Ok(Expression::Block(self.parse_block_expression()?))
+            }
             _ => Err(ParserError::NoPrefixParseFnFound {
                 token: self.cur_token.clone(),
             }),
         }
     }
 
+    // ! Expects peek token to be operator
     fn parse_infix_operator(&mut self) -> Option<InfixOperator> {
         match self.peek_token.clone() {
             Token::Plus => Some(InfixOperator::Plus),
             Token::Minus => Some(InfixOperator::Minus),
             Token::Asterisk => Some(InfixOperator::Asterisk),
-            Token::Slash => {
-                if self.peek_token_is(Token::Slash) {
-                    self.next_token();
-                    Some(InfixOperator::DoubleSlash)
-                } else {
-                    Some(InfixOperator::Slash)
-                }
-            }
+            Token::Slash => Some(InfixOperator::Slash),
+            Token::DoubleSlash => Some(InfixOperator::DoubleSlash),
             Token::Eq => Some(InfixOperator::Equal),
             Token::NotEq => Some(InfixOperator::NotEqual),
             Token::Lt => Some(InfixOperator::LessThan),
@@ -362,13 +356,13 @@ impl Parser {
         }
     }
 
+    // ! Expects peek token to be start of right side of infix expression
+    // ! Current token is operator
     fn parse_infix_expression(
         &mut self,
         left: Expression,
         operator: InfixOperator,
     ) -> Result<Expression, ParserError> {
-        eprintln!("parse_infix_expression: {:?}", operator);
-
         match operator {
             InfixOperator::LParen => {
                 let arguments = self.parse_expression_list(Token::RParen)?;
@@ -378,9 +372,8 @@ impl Parser {
                 }));
             }
             InfixOperator::LBracket => {
-                let precedence = self.cur_precedence();
                 self.next_token();
-                let right = self.parse_expression(precedence)?;
+                let right = self.parse_expression(Precedence::Lowest)?;
                 self.expect_peek(Token::RBracket)?;
                 return Ok(Expression::Index(IndexExpression {
                     left: Box::new(left),
