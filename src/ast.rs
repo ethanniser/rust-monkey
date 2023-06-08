@@ -49,12 +49,13 @@ mod expression {
 
     #[derive(Debug, PartialEq, Clone)]
     pub enum Expression {
-        Identifier(IdentifierLiteral),
+        Ident(IdentifierLiteral),
         Int(IntegerLiteral),
-        Boolean(BooleanLiteral),
-        Function(FunctionLiteral),
+        Bool(BooleanLiteral),
+        Fn(FunctionLiteral),
         String(StringLiteral),
         Array(ArrayLiteral),
+        Hash(HashLiteral),
         If(IfExpression),
         Call(CallExpression),
         Block(BlockExpression),
@@ -99,6 +100,11 @@ mod expression {
     pub struct FunctionLiteral {
         pub parameters: Vec<IdentifierLiteral>,
         pub body: BlockExpression,
+    }
+
+    #[derive(Debug, PartialEq, Clone)]
+    pub struct HashLiteral {
+        pub pairs: Vec<(Expression, Expression)>,
     }
 
     #[derive(Debug, PartialEq, Clone)]
@@ -230,11 +236,11 @@ mod expression {
     impl Display for Expression {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
-                Expression::Identifier(identifier) => write!(f, "{}", identifier.value),
+                Expression::Ident(identifier) => write!(f, "{}", identifier.value),
                 Expression::Int(integer) => write!(f, "{}", integer.value),
-                Expression::Boolean(boolean) => write!(f, "{}", boolean.value),
+                Expression::Bool(boolean) => write!(f, "{}", boolean.value),
                 Expression::String(string) => write!(f, "{}", string.value),
-                Expression::Function(function) => write!(f, "{}", function),
+                Expression::Fn(function) => write!(f, "{}", function),
                 Expression::If(if_expression) => write!(f, "{}", if_expression),
                 Expression::Call(call_expression) => write!(f, "{}", call_expression),
                 Expression::Block(block_expression) => write!(f, "{}", block_expression),
@@ -243,7 +249,21 @@ mod expression {
                 Expression::NoneLiteral => write!(f, "none"),
                 Expression::Array(array) => write!(f, "{}", array),
                 Expression::Index(index) => write!(f, "{}", index),
+                Expression::Hash(hash) => write!(f, "{}", hash),
             }
+        }
+    }
+
+    impl Display for HashLiteral {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let pairs = self
+                .pairs
+                .iter()
+                .map(|(key, value)| format!("{}: {}", key, value))
+                .collect::<Vec<_>>()
+                .join(", ");
+
+            write!(f, "{{{}}}", pairs)
         }
     }
 

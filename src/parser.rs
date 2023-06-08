@@ -2,6 +2,7 @@ use crate::ast::*;
 use crate::lexer::Lexer;
 use crate::token::Token;
 use std::fmt::Display;
+use std::vec;
 
 impl Token {
     fn get_precedence(&self) -> Precedence {
@@ -38,7 +39,7 @@ pub enum Operator {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum ParserExpectation {
+pub enum ParserErrorFound {
     Statement(Statement),
     Expression(Expression),
     Token(Token),
@@ -46,31 +47,34 @@ pub enum ParserExpectation {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum Amount {
-    One(ParserExpectation),
-    Many(Vec<ParserExpectation>),
+pub enum ParserErrorExpected {
+    Statement(StatementType),
+    Expression(ExpressionType),
+    Token(Token),
+    Operator(Operator),
 }
 
-impl Display for Amount {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Amount::One(node) => write!(f, "{:?}", node),
-            Amount::Many(nodes) => {
-                let mut nodes_str = String::new();
-                for node in nodes {
-                    nodes_str.push_str(&format!("{:?}, ", node));
-                }
-                write!(f, "{}", nodes_str)
-            }
-        }
-    }
+#[derive(Debug, PartialEq)]
+pub enum StatementType {
+    Let,
+    Return,
+    Expression,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum ExpressionType {
+    Prefix,
+    Infix,
+    Call,
+    Index,
+    Any,
 }
 
 #[derive(Debug, PartialEq)]
 pub enum ParserError {
-    FoundOtherThanExpectedToken {
-        expected: Amount,
-        found: ParserExpectation,
+    FoundOtherThanExpected {
+        expected: Vec<ParserErrorExpected>,
+        found: ParserErrorFound,
     },
     NoPrefixParseFnFound {
         token: Token,
@@ -83,8 +87,8 @@ pub enum ParserError {
 impl Display for ParserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ParserError::FoundOtherThanExpectedToken { expected, found } => {
-                write!(f, "Expected {}, found {:?}", expected, found)
+            ParserError::FoundOtherThanExpected { expected, found } => {
+                write!(f, "Expected {:?}, found {:?}", expected, found)
             }
             ParserError::NoPrefixParseFnFound { token } => {
                 write!(f, "No prefix parse function found for {:?}", token)
@@ -136,9 +140,9 @@ impl Parser {
             self.next_token();
             Ok(())
         } else {
-            Err(ParserError::FoundOtherThanExpectedToken {
-                expected: Amount::One(ParserExpectation::Token(token)),
-                found: ParserExpectation::Token(self.peek_token.clone()),
+            Err(ParserError::FoundOtherThanExpected {
+                expected: vec![ParserErrorExpected::Token(token)],
+                found: ParserErrorFound::Token(self.peek_token.clone()),
             })
         }
     }
@@ -186,11 +190,9 @@ impl Parser {
                 value: name.clone(),
             },
             other_token => {
-                return Err(ParserError::FoundOtherThanExpectedToken {
-                    expected: Amount::One(ParserExpectation::Token(Token::Identifier(
-                        String::new(),
-                    ))),
-                    found: ParserExpectation::Token(other_token),
+                return Err(ParserError::FoundOtherThanExpected {
+                    expected: vec![ParserErrorExpected::Statement(StatementType::Let)],
+                    found: ParserErrorFound::Token(other_token),
                 })
             }
         };
@@ -278,14 +280,14 @@ impl Parser {
         Ok(left)
     }
 
-    // ! Expects left side of infix is current token
+    // ! Expects current token to be the start of the expression
     fn parse_prefix_expression(&mut self) -> Result<Expression, ParserError> {
         match self.cur_token.clone() {
             Token::Int(i) => Ok(Expression::Int(IntegerLiteral { value: i })),
             Token::String(s) => Ok(Expression::String(StringLiteral { value: s })),
-            Token::Identifier(s) => Ok(Expression::Identifier(IdentifierLiteral { value: s })),
-            Token::True => Ok(Expression::Boolean(BooleanLiteral { value: true })),
-            Token::False => Ok(Expression::Boolean(BooleanLiteral { value: false })),
+            Token::Identifier(s) => Ok(Expression::Ident(IdentifierLiteral { value: s })),
+            Token::True => Ok(Expression::Bool(BooleanLiteral { value: true })),
+            Token::False => Ok(Expression::Bool(BooleanLiteral { value: false })),
             Token::None => Ok(Expression::NoneLiteral),
             Token::LParen => {
                 self.next_token();
@@ -293,9 +295,9 @@ impl Parser {
                 let expression = self.parse_expression(Precedence::Lowest)?;
 
                 if !self.peek_token_is(Token::RParen) {
-                    return Err(ParserError::FoundOtherThanExpectedToken {
-                        expected: Amount::One(ParserExpectation::Token(Token::RParen)),
-                        found: ParserExpectation::Token(self.peek_token.clone()),
+                    return Err(ParserError::FoundOtherThanExpected {
+                        expected: vec![ParserErrorExpected::Token(Token::RParen)],
+                        found: ParserErrorFound::Token(self.peek_token.clone()),
                     });
                 }
 
@@ -320,14 +322,41 @@ impl Parser {
                 }))
             }
             Token::If => Ok(Expression::If(self.parse_if_expression()?)),
-            Token::Function => Ok(Expression::Function(self.parse_function_literal()?)),
+            Token::Function => Ok(Expression::Fn(self.parse_function_literal()?)),
             Token::LBracket => {
                 let elements = self.parse_expression_list(Token::RBracket)?;
                 Ok(Expression::Array(ArrayLiteral { elements }))
             }
             Token::LBrace => {
-                self.next_token();
-                Ok(Expression::Block(self.parse_block_expression()?))
+                let first_statement = if !self.peek_token_is(Token::RBrace) {
+                    self.next_token();
+
+                    self.parse_statement()?
+                } else {
+                    self.next_token();
+                    return Ok(Expression::Block(BlockExpression {
+                        statements: Vec::new(),
+                    }));
+                };
+
+                Ok(if self.peek_token_is(Token::Colon) {
+                    if let Statement::Expression(ExpressionStatement::NonTerminating(expression)) =
+                        first_statement
+                    {
+                        self.next_token();
+                        self.next_token();
+                        Expression::Hash(self.parse_hash_literal_from_first_key(expression)?)
+                    } else {
+                        return Err(ParserError::FoundOtherThanExpected {
+                            expected: vec![ParserErrorExpected::Expression(ExpressionType::Any)],
+                            found: ParserErrorFound::Statement(first_statement),
+                        });
+                    }
+                } else {
+                    Expression::Block(
+                        self.parse_block_expression_from_first_statement(first_statement)?,
+                    )
+                })
             }
             _ => Err(ParserError::NoPrefixParseFnFound {
                 token: self.cur_token.clone(),
@@ -428,18 +457,78 @@ impl Parser {
     fn parse_block_expression(&mut self) -> Result<BlockExpression, ParserError> {
         let mut statements = Vec::new();
 
-        self.next_token();
-
-        loop {
-            if self.cur_token_is(Token::RBrace) {
-                break;
-            }
+        while !self.peek_token_is(Token::RBrace) {
+            self.next_token();
             let statement = self.parse_statement()?;
             statements.push(statement);
-            self.next_token();
         }
 
+        self.expect_peek(Token::RBrace)?;
+
         Ok(BlockExpression { statements })
+    }
+
+    fn parse_block_expression_from_first_statement(
+        &mut self,
+        first_statement: Statement,
+    ) -> Result<BlockExpression, ParserError> {
+        let mut statements = Vec::new();
+        statements.push(first_statement);
+
+        while !self.peek_token_is(Token::RBrace) {
+            self.next_token();
+
+            let statement = self.parse_statement()?;
+            statements.push(statement);
+        }
+
+        self.expect_peek(Token::RBrace)?;
+
+        Ok(BlockExpression { statements })
+    }
+
+    fn parse_hash_literal_from_first_key(
+        &mut self,
+        first_key: Expression,
+    ) -> Result<HashLiteral, ParserError> {
+        let mut pairs = Vec::new();
+        let first_value = self.parse_expression(Precedence::Lowest)?;
+        pairs.push((first_key, first_value));
+
+        if self.peek_token_is(Token::RBrace) {
+            self.next_token();
+            return Ok(HashLiteral { pairs });
+        } else {
+            self.expect_peek(Token::Comma)?;
+        }
+
+        while !self.peek_token_is(Token::RBrace) {
+            self.next_token();
+            let key = self.parse_expression(Precedence::Lowest)?;
+
+            self.expect_peek(Token::Colon)?;
+            self.next_token();
+            let value = self.parse_expression(Precedence::Lowest)?;
+
+            pairs.push((key, value));
+
+            match self.peek_token.clone() {
+                Token::Comma => {
+                    self.next_token();
+                }
+                Token::RBrace => {}
+                other_token => {
+                    return Err(ParserError::FoundOtherThanExpected {
+                        expected: vec![ParserErrorExpected::Token(Token::Comma)],
+                        found: ParserErrorFound::Token(other_token),
+                    })
+                }
+            }
+        }
+
+        self.expect_peek(Token::RBrace)?;
+
+        Ok(HashLiteral { pairs })
     }
 
     fn parse_function_literal(&mut self) -> Result<FunctionLiteral, ParserError> {
@@ -468,11 +557,9 @@ impl Parser {
         let identifier = match self.cur_token.clone() {
             Token::Identifier(identifier) => identifier,
             other_token => {
-                return Err(ParserError::FoundOtherThanExpectedToken {
-                    expected: Amount::One(ParserExpectation::Token(Token::Identifier(
-                        String::new(),
-                    ))),
-                    found: ParserExpectation::Token(other_token),
+                return Err(ParserError::FoundOtherThanExpected {
+                    expected: vec![ParserErrorExpected::Token(Token::Identifier(String::new()))],
+                    found: ParserErrorFound::Token(other_token),
                 })
             }
         };
@@ -486,11 +573,11 @@ impl Parser {
             let identifier = match self.cur_token.clone() {
                 Token::Identifier(identifier) => identifier,
                 other_token => {
-                    return Err(ParserError::FoundOtherThanExpectedToken {
-                        expected: Amount::One(ParserExpectation::Token(Token::Identifier(
-                            String::new(),
-                        ))),
-                        found: ParserExpectation::Token(other_token),
+                    return Err(ParserError::FoundOtherThanExpected {
+                        expected: vec![ParserErrorExpected::Token(
+                            Token::Identifier(String::new()),
+                        )],
+                        found: ParserErrorFound::Token(other_token),
                     })
                 }
             };
@@ -661,7 +748,7 @@ mod tests {
 
         let expectation = Program {
             statements: vec![Statement::Expression(ExpressionStatement::Terminating(
-                Expression::Identifier(IdentifierLiteral {
+                Expression::Ident(IdentifierLiteral {
                     value: "foobar".to_string(),
                 }),
             ))],
@@ -703,7 +790,7 @@ mod tests {
                 Statement::Expression(ExpressionStatement::Terminating(Expression::Prefix(
                     PrefixExpression {
                         operator: PrefixOperator::Bang,
-                        right: Box::new(Expression::Identifier(IdentifierLiteral {
+                        right: Box::new(Expression::Ident(IdentifierLiteral {
                             value: "foobar".to_string(),
                         })),
                     },
@@ -726,16 +813,16 @@ mod tests {
             statements: vec![
                 Statement::Expression(ExpressionStatement::Terminating(Expression::Infix(
                     InfixExpression {
-                        left: Box::new(Expression::Identifier(IdentifierLiteral {
+                        left: Box::new(Expression::Ident(IdentifierLiteral {
                             value: "a".to_string(),
                         })),
                         operator: InfixOperator::Plus,
                         right: Box::new(Expression::Infix(InfixExpression {
-                            left: Box::new(Expression::Identifier(IdentifierLiteral {
+                            left: Box::new(Expression::Ident(IdentifierLiteral {
                                 value: "b".to_string(),
                             })),
                             operator: InfixOperator::Slash,
-                            right: Box::new(Expression::Identifier(IdentifierLiteral {
+                            right: Box::new(Expression::Ident(IdentifierLiteral {
                                 value: "c".to_string(),
                             })),
                         })),
@@ -796,14 +883,14 @@ mod tests {
 
         let expectation = Program {
             statements: vec![
-                Statement::Expression(ExpressionStatement::Terminating(Expression::Boolean(
+                Statement::Expression(ExpressionStatement::Terminating(Expression::Bool(
                     BooleanLiteral { value: true },
                 ))),
                 Statement::Let(LetStatement {
                     name: IdentifierLiteral {
                         value: "x".to_string(),
                     },
-                    value: Expression::Boolean(BooleanLiteral { value: false }),
+                    value: Expression::Bool(BooleanLiteral { value: false }),
                 }),
             ],
         };
@@ -821,17 +908,17 @@ mod tests {
             statements: vec![Statement::Expression(ExpressionStatement::Terminating(
                 Expression::If(IfExpression {
                     condition: Box::new(Expression::Infix(InfixExpression {
-                        left: Box::new(Expression::Identifier(IdentifierLiteral {
+                        left: Box::new(Expression::Ident(IdentifierLiteral {
                             value: "x".to_string(),
                         })),
                         operator: InfixOperator::LessThan,
-                        right: Box::new(Expression::Identifier(IdentifierLiteral {
+                        right: Box::new(Expression::Ident(IdentifierLiteral {
                             value: "y".to_string(),
                         })),
                     })),
                     consequence: BlockExpression {
                         statements: vec![Statement::Expression(
-                            ExpressionStatement::NonTerminating(Expression::Identifier(
+                            ExpressionStatement::NonTerminating(Expression::Ident(
                                 IdentifierLiteral {
                                     value: "x".to_string(),
                                 },
@@ -856,17 +943,17 @@ mod tests {
             statements: vec![Statement::Expression(ExpressionStatement::Terminating(
                 Expression::If(IfExpression {
                     condition: Box::new(Expression::Infix(InfixExpression {
-                        left: Box::new(Expression::Identifier(IdentifierLiteral {
+                        left: Box::new(Expression::Ident(IdentifierLiteral {
                             value: "x".to_string(),
                         })),
                         operator: InfixOperator::LessThan,
-                        right: Box::new(Expression::Identifier(IdentifierLiteral {
+                        right: Box::new(Expression::Ident(IdentifierLiteral {
                             value: "y".to_string(),
                         })),
                     })),
                     consequence: BlockExpression {
                         statements: vec![Statement::Expression(
-                            ExpressionStatement::NonTerminating(Expression::Identifier(
+                            ExpressionStatement::NonTerminating(Expression::Ident(
                                 IdentifierLiteral {
                                     value: "x".to_string(),
                                 },
@@ -875,7 +962,7 @@ mod tests {
                     },
                     alternative: Some(BlockExpression {
                         statements: vec![Statement::Expression(
-                            ExpressionStatement::NonTerminating(Expression::Identifier(
+                            ExpressionStatement::NonTerminating(Expression::Ident(
                                 IdentifierLiteral {
                                     value: "y".to_string(),
                                 },
@@ -898,13 +985,13 @@ mod tests {
 
         let expectation = Program {
             statements: vec![
-                Statement::Expression(ExpressionStatement::Terminating(Expression::Function(
+                Statement::Expression(ExpressionStatement::Terminating(Expression::Fn(
                     FunctionLiteral {
                         parameters: vec![],
                         body: BlockExpression { statements: vec![] },
                     },
                 ))),
-                Statement::Expression(ExpressionStatement::Terminating(Expression::Function(
+                Statement::Expression(ExpressionStatement::Terminating(Expression::Fn(
                     FunctionLiteral {
                         parameters: vec![
                             IdentifierLiteral {
@@ -918,15 +1005,13 @@ mod tests {
                             statements: vec![Statement::Expression(
                                 ExpressionStatement::Terminating(Expression::Infix(
                                     InfixExpression {
-                                        left: Box::new(Expression::Identifier(IdentifierLiteral {
+                                        left: Box::new(Expression::Ident(IdentifierLiteral {
                                             value: "x".to_string(),
                                         })),
                                         operator: InfixOperator::Plus,
-                                        right: Box::new(Expression::Identifier(
-                                            IdentifierLiteral {
-                                                value: "y".to_string(),
-                                            },
-                                        )),
+                                        right: Box::new(Expression::Ident(IdentifierLiteral {
+                                            value: "y".to_string(),
+                                        })),
                                     },
                                 )),
                             )],
@@ -946,7 +1031,7 @@ mod tests {
         let expectation = Program {
             statements: vec![Statement::Expression(ExpressionStatement::Terminating(
                 Expression::Call(CallExpression {
-                    left: Box::new(Expression::Identifier(IdentifierLiteral {
+                    left: Box::new(Expression::Ident(IdentifierLiteral {
                         value: "add".to_string(),
                     })),
                     arguments: vec![
@@ -985,7 +1070,7 @@ mod tests {
                 Statement::Expression(ExpressionStatement::Terminating(Expression::Int(
                     IntegerLiteral { value: 10 },
                 ))),
-                Statement::Expression(ExpressionStatement::Terminating(Expression::Function(
+                Statement::Expression(ExpressionStatement::Terminating(Expression::Fn(
                     FunctionLiteral {
                         parameters: vec![],
                         body: BlockExpression {
@@ -997,7 +1082,7 @@ mod tests {
                         },
                     },
                 ))),
-                Statement::Expression(ExpressionStatement::NonTerminating(Expression::Function(
+                Statement::Expression(ExpressionStatement::NonTerminating(Expression::Fn(
                     FunctionLiteral {
                         parameters: vec![],
                         body: BlockExpression {
@@ -1136,7 +1221,7 @@ mod tests {
         let expectation = Program {
             statements: vec![Statement::Expression(ExpressionStatement::NonTerminating(
                 Expression::Index(IndexExpression {
-                    left: Box::new(Expression::Identifier(IdentifierLiteral {
+                    left: Box::new(Expression::Ident(IdentifierLiteral {
                         value: "myArray".to_string(),
                     })),
                     index: Box::new(Expression::Infix(InfixExpression {
@@ -1144,6 +1229,146 @@ mod tests {
                         operator: InfixOperator::Plus,
                         right: Box::new(Expression::Int(IntegerLiteral { value: 1 })),
                     })),
+                }),
+            ))],
+        };
+        test_vs_expectation(input, expectation);
+    }
+
+    #[test]
+    fn block_expression() {
+        let input = "
+            {
+                let x = 5;
+                x
+            }";
+        let expectation = Program {
+            statements: vec![Statement::Expression(ExpressionStatement::NonTerminating(
+                Expression::Block(BlockExpression {
+                    statements: vec![
+                        Statement::Let(LetStatement {
+                            name: IdentifierLiteral {
+                                value: "x".to_string(),
+                            },
+                            value: Expression::Int(IntegerLiteral { value: 5 }),
+                        }),
+                        Statement::Expression(ExpressionStatement::NonTerminating(
+                            Expression::Ident(IdentifierLiteral {
+                                value: "x".to_string(),
+                            }),
+                        )),
+                    ],
+                }),
+            ))],
+        };
+        test_vs_expectation(input, expectation);
+
+        let input = "{}";
+        let expectation = Program {
+            statements: vec![Statement::Expression(ExpressionStatement::NonTerminating(
+                Expression::Block(BlockExpression { statements: vec![] }),
+            ))],
+        };
+        test_vs_expectation(input, expectation);
+    }
+
+    #[test]
+    fn hash_literal() {
+        let input = "{ 3 : 4 }";
+        let expectation = Program {
+            statements: vec![Statement::Expression(ExpressionStatement::NonTerminating(
+                Expression::Hash(HashLiteral {
+                    pairs: vec![(
+                        Expression::Int(IntegerLiteral { value: 3 }),
+                        Expression::Int(IntegerLiteral { value: 4 }),
+                    )],
+                }),
+            ))],
+        };
+        test_vs_expectation(input, expectation);
+
+        let input = "{
+            true: false,
+            34: 56,
+        }";
+        let expectation = Program {
+            statements: vec![Statement::Expression(ExpressionStatement::NonTerminating(
+                Expression::Hash(HashLiteral {
+                    pairs: vec![
+                        (
+                            Expression::Bool(BooleanLiteral { value: true }),
+                            Expression::Bool(BooleanLiteral { value: false }),
+                        ),
+                        (
+                            Expression::Int(IntegerLiteral { value: 34 }),
+                            Expression::Int(IntegerLiteral { value: 56 }),
+                        ),
+                    ],
+                }),
+            ))],
+        };
+        test_vs_expectation(input, expectation);
+
+        let input = r#"
+        {
+            "one": "two",
+            "two": 10 - 8,
+               4 : fn(x) { x + 1 },
+             true: false,
+        }
+        "#;
+        let expectation = Program {
+            statements: vec![Statement::Expression(ExpressionStatement::NonTerminating(
+                Expression::Hash(HashLiteral {
+                    pairs: vec![
+                        (
+                            Expression::String(StringLiteral {
+                                value: "one".to_string(),
+                            }),
+                            Expression::String(StringLiteral {
+                                value: "two".to_string(),
+                            }),
+                        ),
+                        (
+                            Expression::String(StringLiteral {
+                                value: "two".to_string(),
+                            }),
+                            Expression::Infix(InfixExpression {
+                                left: Box::new(Expression::Int(IntegerLiteral { value: 10 })),
+                                operator: InfixOperator::Minus,
+                                right: Box::new(Expression::Int(IntegerLiteral { value: 8 })),
+                            }),
+                        ),
+                        (
+                            Expression::Int(IntegerLiteral { value: 4 }),
+                            Expression::Fn(FunctionLiteral {
+                                parameters: vec![IdentifierLiteral {
+                                    value: "x".to_string(),
+                                }],
+                                body: BlockExpression {
+                                    statements: vec![Statement::Expression(
+                                        ExpressionStatement::NonTerminating(Expression::Infix(
+                                            InfixExpression {
+                                                left: Box::new(Expression::Ident(
+                                                    IdentifierLiteral {
+                                                        value: "x".to_string(),
+                                                    },
+                                                )),
+                                                operator: InfixOperator::Plus,
+                                                right: Box::new(Expression::Int(IntegerLiteral {
+                                                    value: 1,
+                                                })),
+                                            },
+                                        )),
+                                    )],
+                                },
+                            }),
+                        ),
+                        (
+                            Expression::Bool(BooleanLiteral { value: true }),
+                            Expression::Bool(BooleanLiteral { value: false }),
+                        ),
+                    ],
                 }),
             ))],
         };
@@ -1180,25 +1405,25 @@ mod tests {
             let pairs = vec![
                 (
                     "let x = 5",
-                    vec![ParserError::FoundOtherThanExpectedToken {
-                        expected: Amount::One(ParserExpectation::Token(Token::Semicolon)),
-                        found: ParserExpectation::Token(Token::EOF),
+                    vec![ParserError::FoundOtherThanExpected {
+                        expected: vec![ParserErrorExpected::Token(Token::Semicolon)],
+                        found: ParserErrorFound::Token(Token::EOF),
                     }],
                 ),
                 (
                     "let x 5;",
-                    vec![ParserError::FoundOtherThanExpectedToken {
-                        expected: Amount::One(ParserExpectation::Token(Token::Assign)),
-                        found: ParserExpectation::Token(Token::Int(5)),
+                    vec![ParserError::FoundOtherThanExpected {
+                        expected: vec![ParserErrorExpected::Token(Token::Assign)],
+                        found: ParserErrorFound::Token(Token::Int(5)),
                     }],
                 ),
                 (
                     "let 5 = 5;",
-                    vec![ParserError::FoundOtherThanExpectedToken {
-                        expected: Amount::One(ParserExpectation::Token(Token::Identifier(
-                            String::new(),
-                        ))),
-                        found: ParserExpectation::Token(Token::Int(5)),
+                    vec![ParserError::FoundOtherThanExpected {
+                        expected: vec![ParserErrorExpected::Token(
+                            Token::Identifier(String::new()),
+                        )],
+                        found: ParserErrorFound::Token(Token::Int(5)),
                     }],
                 ),
             ];
@@ -1210,9 +1435,9 @@ mod tests {
         fn return_statement() {
             let pairs = vec![(
                 "return 5",
-                vec![ParserError::FoundOtherThanExpectedToken {
-                    expected: Amount::One(ParserExpectation::Token(Token::Semicolon)),
-                    found: ParserExpectation::Token(Token::EOF),
+                vec![ParserError::FoundOtherThanExpected {
+                    expected: vec![ParserErrorExpected::Token(Token::Semicolon)],
+                    found: ParserErrorFound::Token(Token::EOF),
                 }],
             )];
 
@@ -1248,9 +1473,9 @@ mod tests {
             let pairs = vec![
                 (
                     "((5 + 5);",
-                    vec![ParserError::FoundOtherThanExpectedToken {
-                        expected: Amount::One(ParserExpectation::Token(Token::RParen)),
-                        found: ParserExpectation::Token(Token::Semicolon),
+                    vec![ParserError::FoundOtherThanExpected {
+                        expected: vec![ParserErrorExpected::Token(Token::RParen)],
+                        found: ParserErrorFound::Token(Token::Semicolon),
                     }],
                 ),
                 (
@@ -1261,9 +1486,9 @@ mod tests {
                 ),
                 (
                     "((5 + 5)",
-                    vec![ParserError::FoundOtherThanExpectedToken {
-                        expected: Amount::One(ParserExpectation::Token(Token::RParen)),
-                        found: ParserExpectation::Token(Token::EOF),
+                    vec![ParserError::FoundOtherThanExpected {
+                        expected: vec![ParserErrorExpected::Token(Token::RParen)],
+                        found: ParserErrorFound::Token(Token::EOF),
                     }],
                 ),
             ];
@@ -1285,9 +1510,9 @@ mod tests {
         fn if_else_expression() {
             let pairs = vec![(
                 "if (true) { return; } else",
-                vec![ParserError::FoundOtherThanExpectedToken {
-                    expected: Amount::One(ParserExpectation::Token(Token::LBrace)),
-                    found: ParserExpectation::Token(Token::EOF),
+                vec![ParserError::FoundOtherThanExpected {
+                    expected: vec![ParserErrorExpected::Token(Token::LBrace)],
+                    found: ParserErrorFound::Token(Token::EOF),
                 }],
             )];
 
@@ -1299,34 +1524,34 @@ mod tests {
             let pairs = vec![
                 (
                     "fn()",
-                    vec![ParserError::FoundOtherThanExpectedToken {
-                        expected: Amount::One(ParserExpectation::Token(Token::LBrace)),
-                        found: ParserExpectation::Token(Token::EOF),
+                    vec![ParserError::FoundOtherThanExpected {
+                        expected: vec![ParserErrorExpected::Token(Token::LBrace)],
+                        found: ParserErrorFound::Token(Token::EOF),
                     }],
                 ),
                 (
                     "fn(,x) { return; }",
-                    vec![ParserError::FoundOtherThanExpectedToken {
-                        expected: Amount::One(ParserExpectation::Token(Token::Identifier(
-                            String::new(),
-                        ))),
-                        found: ParserExpectation::Token(Token::Comma),
+                    vec![ParserError::FoundOtherThanExpected {
+                        expected: vec![ParserErrorExpected::Token(
+                            Token::Identifier(String::new()),
+                        )],
+                        found: ParserErrorFound::Token(Token::Comma),
                     }],
                 ),
                 (
                     "fn(x,) { return x; }",
-                    vec![ParserError::FoundOtherThanExpectedToken {
-                        expected: Amount::One(ParserExpectation::Token(Token::Identifier(
-                            String::new(),
-                        ))),
-                        found: ParserExpectation::Token(Token::RParen),
+                    vec![ParserError::FoundOtherThanExpected {
+                        expected: vec![ParserErrorExpected::Token(
+                            Token::Identifier(String::new()),
+                        )],
+                        found: ParserErrorFound::Token(Token::RParen),
                     }],
                 ),
                 (
                     "fn(x, y { return x+y; }",
-                    vec![ParserError::FoundOtherThanExpectedToken {
-                        expected: Amount::One(ParserExpectation::Token(Token::RParen)),
-                        found: ParserExpectation::Token(Token::LBrace),
+                    vec![ParserError::FoundOtherThanExpected {
+                        expected: vec![ParserErrorExpected::Token(Token::RParen)],
+                        found: ParserErrorFound::Token(Token::LBrace),
                     }],
                 ),
             ];
@@ -1339,9 +1564,9 @@ mod tests {
             let pairs = vec![
                 (
                     "add(1, 2, 3",
-                    vec![ParserError::FoundOtherThanExpectedToken {
-                        expected: Amount::One(ParserExpectation::Token(Token::RParen)),
-                        found: ParserExpectation::Token(Token::EOF),
+                    vec![ParserError::FoundOtherThanExpected {
+                        expected: vec![ParserErrorExpected::Token(Token::RParen)],
+                        found: ParserErrorFound::Token(Token::EOF),
                     }],
                 ),
                 (
@@ -1360,9 +1585,9 @@ mod tests {
             let pairs = vec![
                 (
                     "[1, 2, 3",
-                    vec![ParserError::FoundOtherThanExpectedToken {
-                        expected: Amount::One(ParserExpectation::Token(Token::RBracket)),
-                        found: ParserExpectation::Token(Token::EOF),
+                    vec![ParserError::FoundOtherThanExpected {
+                        expected: vec![ParserErrorExpected::Token(Token::RBracket)],
+                        found: ParserErrorFound::Token(Token::EOF),
                     }],
                 ),
                 (

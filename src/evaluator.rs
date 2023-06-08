@@ -166,24 +166,31 @@ impl Node for BlockExpression {
 impl Node for Expression {
     fn eval(&self, env: &Env) -> Result<Rc<Object>, EvalError> {
         match self {
-            Expression::Boolean(boolean_literal) => {
+            Expression::Bool(boolean_literal) => {
                 Ok(Rc::new(Object::Boolean(boolean_literal.value)))
             }
             Expression::Int(integer_literal) => Ok(Rc::new(Object::Integer(integer_literal.value))),
-            Expression::Identifier(identifier_literal) => identifier_literal.eval(env),
+            Expression::Ident(identifier_literal) => identifier_literal.eval(env),
             Expression::String(string_literal) => {
                 Ok(Rc::new(Object::String(string_literal.value.clone())))
             }
             Expression::Prefix(prefix_expression) => prefix_expression.eval(env),
             Expression::Infix(infix_expression) => infix_expression.eval(env),
             Expression::If(if_expression) => if_expression.eval(env),
-            Expression::Function(function_literal) => function_literal.eval(env),
+            Expression::Fn(function_literal) => function_literal.eval(env),
             Expression::Call(call_expression) => call_expression.eval(env),
             Expression::Block(block_expression) => block_expression.eval(env),
             Expression::NoneLiteral => Ok(Rc::new(Object::None)),
             Expression::Array(array_literal) => array_literal.eval(env),
             Expression::Index(index_expression) => index_expression.eval(env),
+            Expression::Hash(hash_literal) => hash_literal.eval(env),
         }
+    }
+}
+
+impl Node for HashLiteral {
+    fn eval(&self, _env: &Env) -> Result<Rc<Object>, EvalError> {
+        unimplemented!("HashLiteral::eval");
     }
 }
 
@@ -703,7 +710,7 @@ mod tests {
                 body: BlockExpression {
                     statements: vec![Statement::Expression(ExpressionStatement::NonTerminating(
                         Expression::Infix(InfixExpression {
-                            left: Box::new(Expression::Identifier(IdentifierLiteral {
+                            left: Box::new(Expression::Ident(IdentifierLiteral {
                                 value: "x".to_string(),
                             })),
                             operator: InfixOperator::Plus,
