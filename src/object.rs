@@ -77,7 +77,7 @@ impl Display for Object {
                     body: function.body.clone()
                 }
             ),
-            Object::BuiltIn(built_in) => write!(f, "BUILT IN FUNCTION: {}", built_in),
+            Object::BuiltIn(built_in) => write!(f, "{}", built_in),
             Object::Array(array) => {
                 let items = array
                     .iter()

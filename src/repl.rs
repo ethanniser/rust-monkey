@@ -1,4 +1,4 @@
-use crate::environment::Environment;
+use crate::environment::{get_scope, Environment};
 use crate::object::Object;
 use crate::parser::Parser;
 use crate::{evaluator::Node, lexer::Lexer};
@@ -23,7 +23,7 @@ pub fn start<R: BufRead, W: Write + 'static>(input: R, mut output: W) -> io::Res
     )?;
     writeln!(
         output,
-        "Feel free to type in commands, and simply type \"exit\" to exit the REPL."
+        "To exit the REPL, type 'exit', and to view the global environment, type 'env'"
     )?;
 
     let output = Rc::new(RefCell::new(output));
@@ -49,6 +49,11 @@ pub fn start<R: BufRead, W: Write + 'static>(input: R, mut output: W) -> io::Res
 
         if line == "exit" {
             return Ok(());
+        }
+
+        if line == "env" {
+            writeln!(buffer, "{}", get_scope(env, 0))?;
+            continue;
         }
 
         let lexer = Lexer::new(line);
@@ -94,6 +99,6 @@ pub fn start<R: BufRead, W: Write + 'static>(input: R, mut output: W) -> io::Res
             continue;
         }
 
-        writeln!(buffer, "{:?}", evaluated)?
+        writeln!(buffer, "{}", evaluated)?
     }
 }

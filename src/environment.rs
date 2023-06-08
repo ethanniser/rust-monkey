@@ -103,16 +103,25 @@ impl Environment {
     }
 }
 
-pub fn debug_scope(env: &Env, indent: usize) {
+pub fn get_scope(env: &Env, indent: usize) -> String {
     let indentation = " ".repeat(indent);
     let environment = env.borrow();
+    let mut output = String::new();
     for (name, object) in environment.store.iter() {
         match &**object {
             Object::Function(func) => {
-                println!("{}Function: {}", indentation, name);
-                debug_scope(&func.env, indent + 4);
+                output.push_str(&format!(
+                    "{}Function: {} = {}\n",
+                    indentation,
+                    name,
+                    Object::Function(func.clone())
+                ));
+                output.push_str(&get_scope(&func.env, indent + 4));
             }
-            _ => println!("{}Variable: {} = {:?}", indentation, name, object),
+            _ => {
+                output.push_str(&format!("{}Variable: {} = {}\n", indentation, name, object));
+            }
         }
     }
+    output
 }
