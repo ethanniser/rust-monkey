@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::rc::Rc;
 
@@ -5,6 +6,7 @@ use crate::ast::*;
 use crate::built_in_functions::*;
 use crate::environment::{Env, Environment};
 use crate::lexer::Lexer;
+use crate::object::HashKey;
 use crate::object::{Function, Object};
 use crate::parser::Parser;
 
@@ -42,6 +44,7 @@ pub enum EvalError {
     ArgumentMismatch { expected: usize, got: usize },
     BuiltInFunction(BuiltInFunctionError),
     IndexOutOfBounds { index: isize, length: isize },
+    UnhashableKey(Rc<Object>),
 }
 
 impl Display for EvalError {
@@ -85,6 +88,9 @@ impl Display for EvalError {
                 "Index out of bounds: index {} is out of bounds for array of length {}",
                 index, length
             ),
+            EvalError::UnhashableKey(object) => {
+                write!(f, "Unhashable key: {}", object)
+            }
         }
     }
 }
@@ -189,8 +195,21 @@ impl Node for Expression {
 }
 
 impl Node for HashLiteral {
-    fn eval(&self, _env: &Env) -> Result<Rc<Object>, EvalError> {
-        unimplemented!("HashLiteral::eval");
+    fn eval(&self, env: &Env) -> Result<Rc<Object>, EvalError> {
+        let mut hash = HashMap::new();
+        for (key, value) in self.pairs.iter() {
+            let key = match (*key.eval(env)?).clone() {
+                Object::String(string) => HashKey::String(string),
+                Object::Integer(integer) => HashKey::Integer(integer),
+                Object::Boolean(boolean) => HashKey::Boolean(boolean),
+                object => {
+                    return Err(EvalError::UnhashableKey(Rc::new(object)));
+                }
+            };
+            let value = value.eval(env)?;
+            hash.insert(key, value);
+        }
+        Ok(Rc::new(Object::Hash(hash)))
     }
 }
 
@@ -202,6 +221,7 @@ impl Node for IndexExpression {
         match (array, index) {
             (Object::Array(array), Object::Integer(index)) => index_array(array, index),
             (Object::String(string), Object::Integer(index)) => index_string(string, index),
+            (Object::Hash(hash), index) => index_hash(hash, index),
             (array, index) => Err(EvalError::TypeMismatch(TypeMismatch::Index(
                 IndexMismatch {
                     left: Rc::new(array),
@@ -209,6 +229,21 @@ impl Node for IndexExpression {
                 },
             ))),
         }
+    }
+}
+
+fn index_hash(hash: HashMap<HashKey, Rc<Object>>, index: Object) -> Result<Rc<Object>, EvalError> {
+    let key = match index {
+        Object::String(string) => HashKey::String(string),
+        Object::Integer(integer) => HashKey::Integer(integer),
+        Object::Boolean(boolean) => HashKey::Boolean(boolean),
+        object => {
+            return Err(EvalError::UnhashableKey(Rc::new(object)));
+        }
+    };
+    match hash.get(&key) {
+        Some(value) => Ok(Rc::clone(value)),
+        None => Ok(Rc::new(Object::None)),
     }
 }
 
@@ -560,6 +595,10 @@ pub fn test_vs_expectation(pairs: Vec<(&str, Result<Object, EvalError>)>) {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use crate::object::HashKey;
+
     use super::*;
 
     #[test]
@@ -893,6 +932,108 @@ mod tests {
         test_vs_expectation(pairs);
     }
 
+    #[test]
+    fn hash_literal() {
+        let pairs = vec![(
+            r#"
+            let two = "two";
+            {
+                "one": 10 - 9,
+                two: 1 + 1,
+                "thr" + "ee": 6 / 2,
+                4: 4,
+                true: 5,
+                false: 6
+                }
+            "#,
+            Ok(Object::Hash({
+                let mut hash = HashMap::new();
+                hash.insert(
+                    HashKey::String("one".to_string()),
+                    Rc::new(Object::Integer(1)),
+                );
+                hash.insert(
+                    HashKey::String("two".to_string()),
+                    Rc::new(Object::Integer(2)),
+                );
+                hash.insert(
+                    HashKey::String("three".to_string()),
+                    Rc::new(Object::Integer(3)),
+                );
+                hash.insert(HashKey::Integer(4), Rc::new(Object::Integer(4)));
+                hash.insert(HashKey::Boolean(true), Rc::new(Object::Integer(5)));
+                hash.insert(HashKey::Boolean(false), Rc::new(Object::Integer(6)));
+                hash
+            })),
+        )];
+
+        test_vs_expectation(pairs);
+    }
+
+    #[test]
+    fn indexing_hash() {
+        let pairs = vec![
+            (
+                r#"
+            let two = "two";
+            {
+                "one": 10 - 9,
+                two: 1 + 1,
+                "thr" + "ee": 6 / 2,
+                4: 4,
+                true: 5,
+                false: 6
+                }["one"]
+            "#,
+                Ok(Object::Integer(1)),
+            ),
+            (
+                r#"
+            let two = "two";
+            {
+                "one": 10 - 9,
+                two: 1 + 1,
+                "thr" + "ee": 6 / 2,
+                4: 4,
+                true: 5,
+                false: 6
+                }[true]
+            "#,
+                Ok(Object::Integer(5)),
+            ),
+            (
+                r#"
+            let two = "two";
+            {
+                "one": 10 - 9,
+                two: 1 + 1,
+                "thr" + "ee": 6 / 2,
+                4: "four",
+                true: 5,
+                false: 6
+                }[4]
+            "#,
+                Ok(Object::String("four".to_string())),
+            ),
+            (
+                r#"
+            let two = "two";
+            {
+                "one": 10 - 9,
+                two: 1 + 1,
+                "thr" + "ee": 6 / 2,
+                4: "four",
+                true: 5,
+                false: 6
+                }[56]
+            "#,
+                Ok(Object::None),
+            ),
+        ];
+
+        test_vs_expectation(pairs);
+    }
+
     mod errors {
 
         use std::vec;
@@ -1014,6 +1155,20 @@ mod tests {
                         left: Rc::new(Object::Integer(43)),
                     },
                 ))),
+            )];
+
+            test_vs_expectation(pairs);
+        }
+
+        #[test]
+        fn unhashable_hash_key() {
+            let pairs = vec![(
+                r#"{[1,2,3]: 1, 2: 2}"#,
+                Err(EvalError::UnhashableKey(Rc::new(Object::Array(vec![
+                    Rc::new(Object::Integer(1)),
+                    Rc::new(Object::Integer(2)),
+                    Rc::new(Object::Integer(3)),
+                ])))),
             )];
 
             test_vs_expectation(pairs);

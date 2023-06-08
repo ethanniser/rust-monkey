@@ -1,4 +1,4 @@
-use std::{fmt::Display, rc::Rc};
+use std::{collections::HashMap, fmt::Display, rc::Rc};
 
 use crate::{
     ast::{BlockExpression, FunctionLiteral, IdentifierLiteral},
@@ -16,6 +16,24 @@ pub enum Object {
     String(String),
     BuiltIn(BuiltInFunction),
     Array(Vec<Rc<Object>>),
+    Hash(HashMap<HashKey, Rc<Object>>),
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub enum HashKey {
+    Integer(isize),
+    Boolean(bool),
+    String(String),
+}
+
+impl Display for HashKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            HashKey::Integer(integer) => write!(f, "{}", integer),
+            HashKey::Boolean(boolean) => write!(f, "{}", boolean),
+            HashKey::String(string) => write!(f, "{}", string),
+        }
+    }
 }
 
 impl Object {
@@ -38,6 +56,7 @@ impl Object {
             Object::String(_) => "string".to_string(),
             Object::BuiltIn(_) => "function".to_string(),
             Object::Array(_) => "array".to_string(),
+            Object::Hash(_) => "hash".to_string(),
         }
     }
 }
@@ -66,6 +85,14 @@ impl Display for Object {
                     .collect::<Vec<_>>()
                     .join(", ");
                 write!(f, "[{items}]")
+            }
+            Object::Hash(hash) => {
+                let items = hash
+                    .iter()
+                    .map(|(key, value)| format!("{}: {}", key, value))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                write!(f, "{{{items}}}")
             }
         }
     }
