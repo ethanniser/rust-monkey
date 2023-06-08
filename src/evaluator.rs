@@ -320,7 +320,7 @@ impl Node for CallExpression {
             env,
         } = match left.as_ref() {
             Object::Function(function) => function,
-            Object::BuiltIn(BuiltInFunction { function, .. }) => match function(args) {
+            Object::BuiltIn(BuiltInFunction { function, .. }) => match function(args, env) {
                 Ok(object) => return Ok(object),
                 Err(error) => return Err(EvalError::BuiltInFunction(error)),
             },

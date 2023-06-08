@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::built_in_functions::{instaniate_std_lib, BUILT_IN_FUNCTIONS};
@@ -5,10 +6,27 @@ use crate::object::Object;
 
 pub type Env = Rc<RefCell<Environment>>;
 
-#[derive(PartialEq, Clone)]
 pub struct Environment {
     pub store: HashMap<String, Rc<Object>>,
     pub outer: Option<Env>,
+    pub output: Option<Rc<RefCell<dyn Write>>>,
+}
+
+impl Clone for Environment {
+    fn clone(&self) -> Self {
+        Self {
+            store: self.store.clone(),
+            outer: self.outer.clone(),
+            // use None or some default value for output because it cannot be cloned
+            output: None,
+        }
+    }
+}
+
+impl PartialEq for Environment {
+    fn eq(&self, other: &Self) -> bool {
+        self.store == other.store && self.outer == other.outer
+    }
 }
 
 impl std::fmt::Debug for Environment {
@@ -32,7 +50,20 @@ impl Environment {
         Rc::new(RefCell::new(Self {
             store: HashMap::new(),
             outer: None,
+            output: None,
         }))
+    }
+
+    pub fn new_with_output<W: Write + 'static>(output: Rc<RefCell<W>>) -> Env {
+        let env = Environment::blank();
+        env.borrow_mut().output = Some(output);
+        for (name, function) in BUILT_IN_FUNCTIONS {
+            env.borrow_mut()
+                .store
+                .insert(name.to_string(), Rc::new(Object::BuiltIn(function)));
+        }
+        instaniate_std_lib(&env);
+        env
     }
 
     pub fn new() -> Env {
@@ -50,6 +81,7 @@ impl Environment {
         Rc::new(RefCell::new(Self {
             store: HashMap::new(),
             outer: Some(Rc::clone(outer)),
+            output: None,
         }))
     }
 

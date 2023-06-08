@@ -3,10 +3,11 @@ use crate::evaluator::Node;
 use crate::lexer::Lexer;
 use crate::object::Object;
 use crate::parser::Parser;
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 use std::{fmt::Formatter, rc::Rc};
 
-pub type BuiltInFunctionType = fn(Vec<Rc<Object>>) -> Result<Rc<Object>, BuiltInFunctionError>;
+pub type BuiltInFunctionType =
+    fn(Vec<Rc<Object>>, &Env) -> Result<Rc<Object>, BuiltInFunctionError>;
 
 #[derive(Debug, PartialEq)]
 pub struct BuiltInFunctionError {
@@ -74,10 +75,22 @@ impl Display for ObjectExpectation {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Clone)]
 pub struct BuiltInFunction {
     pub function: BuiltInFunctionType,
     type_signature: &'static str,
+}
+
+impl Debug for BuiltInFunction {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.type_signature)
+    }
+}
+
+impl PartialEq for BuiltInFunction {
+    fn eq(&self, other: &Self) -> bool {
+        self.type_signature == other.type_signature
+    }
 }
 
 impl Display for BuiltInFunction {
@@ -96,9 +109,10 @@ mod type_signatures {
     pub const LAST: &str = "last(x: array) -> any | none";
     pub const REST: &str = "rest(x: array) -> array | none";
     pub const PUSH: &str = "push(x: array, y: any) -> array";
+    pub const PUTS: &str = "puts(x: any) -> none";
 }
 
-pub const BUILT_IN_FUNCTIONS: [(&'static str, BuiltInFunction); 5] = [
+pub const BUILT_IN_FUNCTIONS: [(&'static str, BuiltInFunction); 6] = [
     (
         "len",
         BuiltInFunction {
@@ -132,6 +146,13 @@ pub const BUILT_IN_FUNCTIONS: [(&'static str, BuiltInFunction); 5] = [
         BuiltInFunction {
             function: push,
             type_signature: type_signatures::PUSH,
+        },
+    ),
+    (
+        "puts",
+        BuiltInFunction {
+            function: puts,
+            type_signature: type_signatures::PUTS,
         },
     ),
 ];
@@ -188,7 +209,27 @@ pub fn instaniate_std_lib(env: &Env) {
         .expect("std lib shouldnt fail to evaluate");
 }
 
-fn len(args: Vec<Rc<Object>>) -> Result<Rc<Object>, BuiltInFunctionError> {
+fn puts(args: Vec<Rc<Object>>, env: &Env) -> Result<Rc<Object>, BuiltInFunctionError> {
+    let mut message = String::new();
+
+    for arg in args {
+        message.push_str(&arg.to_string());
+        message.push_str("\n");
+    }
+
+    let env_borrowed = env.borrow_mut();
+    let output = env_borrowed
+        .output
+        .as_ref()
+        .expect("puts function called when environment has no output");
+    let mut buffer = output.borrow_mut();
+
+    write!(buffer, "{}", message).expect("puts failed to write to output");
+
+    Ok(Rc::new(Object::None))
+}
+
+fn len(args: Vec<Rc<Object>>, _env: &Env) -> Result<Rc<Object>, BuiltInFunctionError> {
     if args.len() != 1 {
         return Err(BuiltInFunctionError {
             error: BIFInnerError::WrongNumberOfArguments {
@@ -223,7 +264,7 @@ fn len(args: Vec<Rc<Object>>) -> Result<Rc<Object>, BuiltInFunctionError> {
     }
 }
 
-fn first(args: Vec<Rc<Object>>) -> Result<Rc<Object>, BuiltInFunctionError> {
+fn first(args: Vec<Rc<Object>>, _env: &Env) -> Result<Rc<Object>, BuiltInFunctionError> {
     if args.len() != 1 {
         return Err(BuiltInFunctionError {
             error: BIFInnerError::WrongNumberOfArguments {
@@ -257,7 +298,7 @@ fn first(args: Vec<Rc<Object>>) -> Result<Rc<Object>, BuiltInFunctionError> {
     }
 }
 
-fn last(args: Vec<Rc<Object>>) -> Result<Rc<Object>, BuiltInFunctionError> {
+fn last(args: Vec<Rc<Object>>, _env: &Env) -> Result<Rc<Object>, BuiltInFunctionError> {
     if args.len() != 1 {
         return Err(BuiltInFunctionError {
             error: BIFInnerError::WrongNumberOfArguments {
@@ -291,7 +332,7 @@ fn last(args: Vec<Rc<Object>>) -> Result<Rc<Object>, BuiltInFunctionError> {
     }
 }
 
-fn rest(args: Vec<Rc<Object>>) -> Result<Rc<Object>, BuiltInFunctionError> {
+fn rest(args: Vec<Rc<Object>>, _env: &Env) -> Result<Rc<Object>, BuiltInFunctionError> {
     if args.len() != 1 {
         return Err(BuiltInFunctionError {
             error: BIFInnerError::WrongNumberOfArguments {
@@ -328,7 +369,7 @@ fn rest(args: Vec<Rc<Object>>) -> Result<Rc<Object>, BuiltInFunctionError> {
     }
 }
 
-fn push(args: Vec<Rc<Object>>) -> Result<Rc<Object>, BuiltInFunctionError> {
+fn push(args: Vec<Rc<Object>>, _env: &Env) -> Result<Rc<Object>, BuiltInFunctionError> {
     if args.len() != 2 {
         return Err(BuiltInFunctionError {
             error: BIFInnerError::WrongNumberOfArguments {

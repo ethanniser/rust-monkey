@@ -1,8 +1,10 @@
-use crate::environment::{debug_scope, Environment};
+use crate::environment::Environment;
 use crate::object::Object;
 use crate::parser::Parser;
 use crate::{evaluator::Node, lexer::Lexer};
+use std::cell::RefCell;
 use std::io::{self, BufRead, Write};
+use std::rc::Rc;
 
 const PROMPT: &str = ">> ";
 
@@ -14,17 +16,21 @@ const MONKEY_FACE: &str = r#"         .-"-.
     \ \_/`"""`\_/ /
      \           /"#;
 
-pub fn start<R: BufRead, W: Write>(input: R, mut output: W) -> io::Result<()> {
+pub fn start<R: BufRead, W: Write + 'static>(input: R, output: W) -> io::Result<()> {
+    let output = Rc::new(RefCell::new(output));
     let mut lines = input.lines();
-    let ref env = Environment::new();
+    let ref env = Environment::new_with_output(Rc::clone(&output));
 
-    debug_scope(env, 0);
+    // debug_scope(env, 0);
 
     // println!("{:?}", (*env).borrow().store);
 
     loop {
-        write!(output, "{PROMPT}")?;
-        output.flush()?;
+        let mut temp_output = output.borrow_mut();
+        let buffer = &mut *temp_output;
+
+        write!(buffer, "{PROMPT}")?;
+        buffer.flush()?;
 
         let line = match lines.next() {
             Some(Ok(line)) => line,
@@ -39,34 +45,42 @@ pub fn start<R: BufRead, W: Write>(input: R, mut output: W) -> io::Result<()> {
         let program = parser.parse_program();
 
         if !parser.errors.is_empty() {
-            writeln!(output, "Woops! We ran into some monkey business here!")?;
-            writeln!(output, "{}", MONKEY_FACE)?;
-            writeln!(output, "Parser Error:")?;
+            writeln!(buffer, "Woops! We ran into some monkey business here!")?;
+            writeln!(buffer, "{}", MONKEY_FACE)?;
+            writeln!(buffer, "Parser Error:")?;
 
             for error in parser.errors {
-                writeln!(output, "{}", error)?;
+                writeln!(buffer, "{}", error)?;
             }
         }
 
-        writeln!(output, "<temp> parser output{:?}", program.statements)?;
+        drop(buffer);
+        drop(temp_output);
 
-        let evaluated = match program.eval(env) {
+        // writeln!(output, "<temp> parser output{:?}", program.statements)?;
+
+        let result = program.eval(env);
+
+        let mut temp_output = output.borrow_mut();
+        let buffer = &mut *temp_output;
+
+        let evaluated = match result {
             Ok(evaluated) => evaluated,
             Err(e) => {
-                writeln!(output, "Woops! We ran into some monkey business here!")?;
-                writeln!(output, "{}", MONKEY_FACE)?;
-                writeln!(output, "Evaluation Error:")?;
-                writeln!(output, "{e}")?;
+                writeln!(buffer, "Woops! We ran into some monkey business here!")?;
+                writeln!(buffer, "{}", MONKEY_FACE)?;
+                writeln!(buffer, "Evaluation Error:")?;
+                writeln!(buffer, "{e}")?;
                 continue;
             }
         };
 
-        debug_scope(env, 0);
+        // debug_scope(env, 0);
 
         if let Object::None = *evaluated {
             continue;
         }
 
-        writeln!(output, "{:?}", evaluated)?
+        writeln!(buffer, "{:?}", evaluated)?
     }
 }
