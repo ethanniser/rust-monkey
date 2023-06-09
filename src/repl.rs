@@ -72,7 +72,7 @@ pub fn start<R: BufRead, W: Write + 'static>(input: R, mut output: W) -> io::Res
             }
         }
 
-        drop(buffer);
+        // drop(buffer);
         drop(temp_output);
 
         // writeln!(output, "<temp> parser output{:?}", program.statements)?;

@@ -104,16 +104,16 @@ pub struct BuiltIns {
 }
 
 mod type_signatures {
-    pub const LEN: &str = "len(x: string | array) -> integer";
-    pub const FIRST: &str = "first(x: array) -> any | none";
-    pub const LAST: &str = "last(x: array) -> any | none";
-    pub const REST: &str = "rest(x: array) -> array | none";
-    pub const PUSH: &str = "push(x: array, y: any) -> array";
-    pub const PUTS: &str = "puts(x: any) -> none";
-    pub const TYPE: &str = r#"type(x: any) -> "none" | "integer" | "boolean" | "string" | "function" | "array" | "hash""#;
+    pub const LEN: &str = "fn(x: string | array) -> integer";
+    pub const FIRST: &str = "fn(x: array) -> any | none";
+    pub const LAST: &str = "fn(x: array) -> any | none";
+    pub const REST: &str = "fn(x: array) -> array | none";
+    pub const PUSH: &str = "fn(x: array, y: any) -> array";
+    pub const PUTS: &str = "fn(x: any) -> none";
+    pub const TYPE: &str = r#"fn(x: any) -> "none" | "integer" | "boolean" | "string" | "function" | "array" | "hash""#;
 }
 
-pub const BUILT_IN_FUNCTIONS: [(&'static str, BuiltInFunction); 7] = [
+pub const BUILT_IN_FUNCTIONS: [(&str, BuiltInFunction); 7] = [
     (
         "len",
         BuiltInFunction {
