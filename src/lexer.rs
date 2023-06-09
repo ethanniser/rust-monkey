@@ -86,6 +86,10 @@ impl Lexer {
                 let string = self.read_string();
                 Token::String(string)
             }
+            '#' => {
+                self.skip_comment();
+                return self.next_token();
+            }
             '\0' => Token::EOF,
             _ => {
                 flag = true;
@@ -105,6 +109,12 @@ impl Lexer {
             self.read_char();
         }
         token
+    }
+
+    fn skip_comment(&mut self) {
+        while self.ch != '\n' && self.ch != '\0' {
+            self.read_char();
+        }
     }
 
     fn read_string(&mut self) -> String {
@@ -210,6 +220,8 @@ mod tests {
                     true && false || true
                     5 / 3
                     5 // 2
+                    # This is a comment
+                    23
                     "#
         .to_string();
 
@@ -310,6 +322,7 @@ mod tests {
             Token::Int(5),
             Token::DoubleSlash,
             Token::Int(2),
+            Token::Int(23),
             Token::EOF,
         ];
 
