@@ -2,12 +2,11 @@ use std::collections::HashMap;
 use std::fmt::Display;
 use std::rc::Rc;
 
+use super::built_in_functions::*;
+use super::environment::{Env, Environment};
+use super::object::{Function, HashKey, Object};
 use crate::ast::*;
-use crate::built_in_functions::*;
-use crate::environment::{Env, Environment};
 use crate::lexer::Lexer;
-use crate::object::HashKey;
-use crate::object::{Function, Object};
 use crate::parser::Parser;
 
 #[derive(Debug, PartialEq)]
@@ -592,7 +591,7 @@ pub fn test_vs_expectation(pairs: Vec<(&str, Result<Object, EvalError>)>) {
 mod tests {
     use std::collections::HashMap;
 
-    use crate::object::HashKey;
+    use crate::interpreter::object::HashKey;
 
     use super::*;
 

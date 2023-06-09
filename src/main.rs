@@ -1,4 +1,4 @@
-use interpreter::*;
+use monkey::*;
 
 use std::io;
 

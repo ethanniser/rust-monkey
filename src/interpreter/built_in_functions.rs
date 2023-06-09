@@ -1,7 +1,7 @@
-use crate::environment::Env;
-use crate::evaluator::Node;
+use super::environment::Env;
+use super::evaluator::Node;
+use super::object::Object;
 use crate::lexer::Lexer;
-use crate::object::Object;
 use crate::parser::Parser;
 use std::fmt::{Debug, Display};
 use std::{fmt::Formatter, rc::Rc};
@@ -20,9 +20,9 @@ impl Display for BuiltInFunctionError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let preface = format!("Error in built in function '{}': ", self.function);
         let error = match &self.error {
-            BIFInnerError::WrongNumberOfArguments { expected, got } => format!(
-                "Wrong number of arguments. Expected {expected}, got {got}"
-            ),
+            BIFInnerError::WrongNumberOfArguments { expected, got } => {
+                format!("Wrong number of arguments. Expected {expected}, got {got}")
+            }
             BIFInnerError::WrongArgumentType { expected, got } => {
                 format!(
                     "Wrong argument type. Expected: {}, Got: {}",
@@ -434,7 +434,7 @@ fn push(args: Vec<Rc<Object>>, _env: &Env) -> Result<Rc<Object>, BuiltInFunction
 #[cfg(test)]
 mod tests {
 
-    use crate::evaluator::{test_vs_expectation, EvalError};
+    use crate::interpreter::evaluator::{test_vs_expectation, EvalError};
 
     use super::*;
 

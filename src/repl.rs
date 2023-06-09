@@ -1,7 +1,8 @@
-use crate::environment::{get_scope, Environment};
-use crate::object::Object;
+use crate::interpreter::environment::{get_scope, Environment};
+use crate::interpreter::evaluator::Node;
+use crate::interpreter::object::Object;
+use crate::lexer::Lexer;
 use crate::parser::Parser;
-use crate::{evaluator::Node, lexer::Lexer};
 use std::cell::RefCell;
 use std::io::{self, BufRead, Write};
 use std::rc::Rc;

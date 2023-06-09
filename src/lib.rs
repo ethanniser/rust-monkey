@@ -1,9 +1,6 @@
 pub mod ast;
-pub mod built_in_functions;
-pub mod environment;
-pub mod evaluator;
+pub mod interpreter;
 pub mod lexer;
-pub mod object;
 pub mod parser;
 pub mod repl;
 pub mod token;

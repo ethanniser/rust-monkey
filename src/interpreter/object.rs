@@ -1,10 +1,6 @@
+use super::{built_in_functions::BuiltInFunction, environment::Env};
+use crate::ast::{BlockExpression, FunctionLiteral, IdentifierLiteral};
 use std::{collections::HashMap, fmt::Display, rc::Rc};
-
-use crate::{
-    ast::{BlockExpression, FunctionLiteral, IdentifierLiteral},
-    built_in_functions::BuiltInFunction,
-    environment::Env,
-};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Object {
