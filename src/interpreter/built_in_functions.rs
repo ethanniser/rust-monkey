@@ -1,7 +1,7 @@
 use super::environment::Env;
 use super::evaluator::Node;
-use super::object::Object;
 use crate::lexer::Lexer;
+use crate::object::Object;
 use crate::parser::Parser;
 use std::fmt::{Debug, Display};
 use std::{fmt::Formatter, rc::Rc};

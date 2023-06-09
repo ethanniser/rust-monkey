@@ -1,5 +1,5 @@
-use super::{built_in_functions::BuiltInFunction, environment::Env};
 use crate::ast::{BlockExpression, FunctionLiteral, IdentifierLiteral};
+use crate::interpreter::{built_in_functions::BuiltInFunction, environment::Env};
 use std::{collections::HashMap, fmt::Display, rc::Rc};
 
 #[derive(Debug, PartialEq, Clone)]

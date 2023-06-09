@@ -4,9 +4,9 @@ use std::rc::Rc;
 
 use super::built_in_functions::*;
 use super::environment::{Env, Environment};
-use super::object::{Function, HashKey, Object};
 use crate::ast::*;
 use crate::lexer::Lexer;
+use crate::object::{Function, HashKey, Object};
 use crate::parser::Parser;
 
 #[derive(Debug, PartialEq)]
@@ -591,7 +591,7 @@ pub fn test_vs_expectation(pairs: Vec<(&str, Result<Object, EvalError>)>) {
 mod tests {
     use std::collections::HashMap;
 
-    use crate::interpreter::object::HashKey;
+    use crate::object::HashKey;
 
     use super::*;
 

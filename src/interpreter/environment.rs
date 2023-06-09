@@ -2,7 +2,7 @@ use std::io::Write;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use super::built_in_functions::{instaniate_std_lib, BUILT_IN_FUNCTIONS};
-use super::object::Object;
+use crate::object::Object;
 
 pub type Env = Rc<RefCell<Environment>>;
 
