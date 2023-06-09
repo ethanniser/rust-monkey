@@ -88,13 +88,13 @@ impl Display for ParserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ParserError::FoundOtherThanExpected { expected, found } => {
-                write!(f, "Expected {:?}, found {:?}", expected, found)
+                write!(f, "Expected {expected:?}, found {found:?}")
             }
             ParserError::NoPrefixParseFnFound { token } => {
-                write!(f, "No prefix parse function found for {:?}", token)
+                write!(f, "No prefix parse function found for {token:?}")
             }
             ParserError::NoInfixParseFnFound { token } => {
-                write!(f, "No infix parse function found for {:?}", token)
+                write!(f, "No infix parse function found for {token:?}")
             }
         }
     }
@@ -1394,8 +1394,8 @@ mod tests {
                     );
                 }
 
-                for i in 0..expectation.len() {
-                    assert_eq!(parser.errors[i], expectation[i]);
+                for (i, item) in expectation.iter().enumerate() {
+                    assert_eq!(parser.errors[i], *item);
                 }
             }
         }

@@ -29,9 +29,9 @@ pub enum HashKey {
 impl Display for HashKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            HashKey::Integer(integer) => write!(f, "{}", integer),
-            HashKey::Boolean(boolean) => write!(f, "{}", boolean),
-            HashKey::String(string) => write!(f, "{}", string),
+            HashKey::Integer(integer) => write!(f, "{integer}"),
+            HashKey::Boolean(boolean) => write!(f, "{boolean}"),
+            HashKey::String(string) => write!(f, "{string}"),
         }
     }
 }
@@ -65,10 +65,10 @@ impl Display for Object {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Object::None => Ok(()),
-            Object::Integer(integer) => write!(f, "{}", integer),
-            Object::Boolean(boolean) => write!(f, "{}", boolean),
-            Object::String(string) => write!(f, "{}", string),
-            Object::ReturnValue(value) => write!(f, "{}", value),
+            Object::Integer(integer) => write!(f, "{integer}"),
+            Object::Boolean(boolean) => write!(f, "{boolean}"),
+            Object::String(string) => write!(f, "{string}"),
+            Object::ReturnValue(value) => write!(f, "{value}"),
             Object::Function(function) => write!(
                 f,
                 "{}",
@@ -77,7 +77,7 @@ impl Display for Object {
                     body: function.body.clone()
                 }
             ),
-            Object::BuiltIn(built_in) => write!(f, "{}", built_in),
+            Object::BuiltIn(built_in) => write!(f, "{built_in}"),
             Object::Array(array) => {
                 let items = array
                     .iter()
@@ -89,7 +89,7 @@ impl Display for Object {
             Object::Hash(hash) => {
                 let items = hash
                     .iter()
-                    .map(|(key, value)| format!("{}: {}", key, value))
+                    .map(|(key, value)| format!("{key}: {value}"))
                     .collect::<Vec<_>>()
                     .join(", ");
                 write!(f, "{{{items}}}")

@@ -212,11 +212,11 @@ mod expression {
                     Statement::Expression(expression) => match expression {
                         ExpressionStatement::Terminating(_) => "none".to_string(),
                         ExpressionStatement::NonTerminating(expression) => {
-                            format!("{}", expression)
+                            format!("{expression}")
                         }
                     },
                     Statement::Return(return_statement) => match return_statement.return_value {
-                        Some(ref expression) => format!("{}", expression),
+                        Some(ref expression) => format!("{expression}"),
                         None => "none".to_string(),
                     },
                     Statement::Let(_) => "none".to_string(),
@@ -227,7 +227,7 @@ mod expression {
 
             let dots = if self.statements.len() > 1 { "..." } else { "" };
 
-            let combined = format!("{}{}", dots, display);
+            let combined = format!("{dots}{display}");
 
             write!(f, "{combined}")
         }
@@ -240,16 +240,16 @@ mod expression {
                 Expression::Int(integer) => write!(f, "{}", integer.value),
                 Expression::Bool(boolean) => write!(f, "{}", boolean.value),
                 Expression::String(string) => write!(f, "{}", string.value),
-                Expression::Fn(function) => write!(f, "{}", function),
-                Expression::If(if_expression) => write!(f, "{}", if_expression),
-                Expression::Call(call_expression) => write!(f, "{}", call_expression),
-                Expression::Block(block_expression) => write!(f, "{}", block_expression),
-                Expression::Prefix(prefix_expression) => write!(f, "{}", prefix_expression),
-                Expression::Infix(infix_expression) => write!(f, "{}", infix_expression),
+                Expression::Fn(function) => write!(f, "{function}"),
+                Expression::If(if_expression) => write!(f, "{if_expression}"),
+                Expression::Call(call_expression) => write!(f, "{call_expression}"),
+                Expression::Block(block_expression) => write!(f, "{block_expression}"),
+                Expression::Prefix(prefix_expression) => write!(f, "{prefix_expression}"),
+                Expression::Infix(infix_expression) => write!(f, "{infix_expression}"),
                 Expression::NoneLiteral => write!(f, "none"),
-                Expression::Array(array) => write!(f, "{}", array),
-                Expression::Index(index) => write!(f, "{}", index),
-                Expression::Hash(hash) => write!(f, "{}", hash),
+                Expression::Array(array) => write!(f, "{array}"),
+                Expression::Index(index) => write!(f, "{index}"),
+                Expression::Hash(hash) => write!(f, "{hash}"),
             }
         }
     }
@@ -259,11 +259,11 @@ mod expression {
             let pairs = self
                 .pairs
                 .iter()
-                .map(|(key, value)| format!("{}: {}", key, value))
+                .map(|(key, value)| format!("{key}: {value}"))
                 .collect::<Vec<_>>()
                 .join(", ");
 
-            write!(f, "{{{}}}", pairs)
+            write!(f, "{{{pairs}}}")
         }
     }
 
@@ -278,11 +278,11 @@ mod expression {
             let elements = self
                 .elements
                 .iter()
-                .map(|expression| format!("{}", expression))
+                .map(|expression| format!("{expression}"))
                 .collect::<Vec<_>>()
                 .join(", ");
 
-            write!(f, "[{}]", elements)
+            write!(f, "[{elements}]")
         }
     }
 
@@ -306,7 +306,7 @@ mod expression {
             let arguments = self
                 .arguments
                 .iter()
-                .map(|expression| format!("{}", expression))
+                .map(|expression| format!("{expression}"))
                 .collect::<Vec<_>>()
                 .join(", ");
 

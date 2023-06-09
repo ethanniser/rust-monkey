@@ -28,7 +28,7 @@ pub fn start<R: BufRead, W: Write + 'static>(input: R, mut output: W) -> io::Res
 
     let output = Rc::new(RefCell::new(output));
     let mut lines = input.lines();
-    let ref env = Environment::new_with_output(Rc::clone(&output));
+    let env = &Environment::new_with_output(Rc::clone(&output));
 
     // debug_scope(env, 0);
 
@@ -64,11 +64,11 @@ pub fn start<R: BufRead, W: Write + 'static>(input: R, mut output: W) -> io::Res
 
         if !parser.errors.is_empty() {
             writeln!(buffer, "Woops! We ran into some monkey business here!")?;
-            writeln!(buffer, "{}", MONKEY_FACE)?;
+            writeln!(buffer, "{MONKEY_FACE}")?;
             writeln!(buffer, "Parser Error:")?;
 
             for error in parser.errors {
-                writeln!(buffer, "{}", error)?;
+                writeln!(buffer, "{error}")?;
             }
         }
 
@@ -86,7 +86,7 @@ pub fn start<R: BufRead, W: Write + 'static>(input: R, mut output: W) -> io::Res
             Ok(evaluated) => evaluated,
             Err(e) => {
                 writeln!(buffer, "Woops! We ran into some monkey business here!")?;
-                writeln!(buffer, "{}", MONKEY_FACE)?;
+                writeln!(buffer, "{MONKEY_FACE}")?;
                 writeln!(buffer, "Evaluation Error:")?;
                 writeln!(buffer, "{e}")?;
                 continue;
@@ -99,6 +99,6 @@ pub fn start<R: BufRead, W: Write + 'static>(input: R, mut output: W) -> io::Res
             continue;
         }
 
-        writeln!(buffer, "{}", evaluated)?
+        writeln!(buffer, "{evaluated}")?
     }
 }

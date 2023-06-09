@@ -418,7 +418,7 @@ mod tests {
             }
         }
 
-        eprintln!("{:?}", tokens);
+        eprintln!("{tokens:?}");
 
         for i in 0..tokens.len() {
             assert!(tokens[i] == expected_output[i]);

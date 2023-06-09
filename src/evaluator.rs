@@ -51,7 +51,7 @@ impl Display for EvalError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             EvalError::UnknownIdentifier(identifier) => {
-                write!(f, "unknown identifier: {}", identifier)
+                write!(f, "unknown identifier: {identifier}")
             }
             EvalError::TypeMismatch(type_mismatch) => match type_mismatch {
                 TypeMismatch::Prefix(prefix_mismatch) => write!(
@@ -77,19 +77,18 @@ impl Display for EvalError {
                 }
             },
             EvalError::CallOnNonFunction(object) => {
-                write!(f, "Tried to call non-function object: {}", object)
+                write!(f, "Tried to call non-function object: {object}")
             }
             EvalError::ArgumentMismatch { expected, got } => {
-                write!(f, "Expected {} arguments, got {}", expected, got)
+                write!(f, "Expected {expected} arguments, got {got}")
             }
-            EvalError::BuiltInFunction(bif_error) => write!(f, "{}", bif_error),
+            EvalError::BuiltInFunction(bif_error) => write!(f, "{bif_error}"),
             EvalError::IndexOutOfBounds { index, length } => write!(
                 f,
-                "Index out of bounds: index {} is out of bounds for array of length {}",
-                index, length
+                "Index out of bounds: index {index} is out of bounds for array of length {length}"
             ),
             EvalError::UnhashableKey(object) => {
-                write!(f, "Unhashable key: {}", object)
+                write!(f, "Unhashable key: {object}")
             }
         }
     }
@@ -157,11 +156,8 @@ impl Node for BlockExpression {
         for statement in self.statements.iter() {
             result = statement.eval(env)?;
 
-            match &*result {
-                Object::ReturnValue(value) => {
-                    return Ok(Rc::new(Object::ReturnValue(Box::new(Rc::clone(value)))))
-                }
-                _ => (),
+            if let Object::ReturnValue(value) = &*result {
+                return Ok(Rc::new(Object::ReturnValue(Box::new(Rc::clone(value)))));
             }
         }
 
@@ -281,7 +277,7 @@ fn index_array(array: Vec<Rc<Object>>, index: isize) -> Result<Rc<Object>, EvalE
                 index,
                 length: array_length,
             })
-            .map(|v| Rc::clone(v))
+            .map(Rc::clone)
     } else {
         array
             .get((array_length + index) as usize)
@@ -289,7 +285,7 @@ fn index_array(array: Vec<Rc<Object>>, index: isize) -> Result<Rc<Object>, EvalE
                 index,
                 length: array_length,
             })
-            .map(|v| Rc::clone(v))
+            .map(Rc::clone)
     }
 }
 
@@ -349,7 +345,7 @@ impl Node for FunctionLiteral {
         Ok(Rc::new(Object::Function(Function {
             parameters: self.parameters.clone(),
             body: self.body.clone(),
-            env: Environment::new_enclosed(&env),
+            env: Environment::new_enclosed(env),
         })))
     }
 }
@@ -357,7 +353,7 @@ impl Node for FunctionLiteral {
 impl Node for IdentifierLiteral {
     fn eval(&self, env: &Env) -> Result<Rc<Object>, EvalError> {
         match env.borrow_mut().get(&self.value) {
-            Some(value) => Ok(value.clone()),
+            Some(value) => Ok(value),
             None => Err(EvalError::UnknownIdentifier(self.value.clone())),
         }
     }
@@ -456,7 +452,7 @@ impl Node for InfixExpression {
                     Ok(Rc::new(Object::Integer(left + right)))
                 }
                 (Object::String(left), Object::String(right)) => {
-                    Ok(Rc::new(Object::String(format!("{}{}", left, right))))
+                    Ok(Rc::new(Object::String(format!("{left}{right}"))))
                 }
                 _ => Err(EvalError::TypeMismatch(TypeMismatch::Infix(
                     InfixMismatch {
@@ -554,9 +550,8 @@ impl Node for Program {
         for statement in self.statements.iter() {
             result = statement.eval(env)?;
 
-            match &*result {
-                Object::ReturnValue(value) => return Ok(Rc::clone(value)),
-                _ => (),
+            if let Object::ReturnValue(value) = &*result {
+                return Ok(Rc::clone(value));
             }
         }
 
@@ -571,24 +566,24 @@ pub fn test_eval(input: String) -> Result<Rc<Object>, EvalError> {
     if !parser.errors.is_empty() {
         eprintln!("parsing error for input: \"{input}\"");
         for error in parser.errors.iter() {
-            eprintln!("ERROR: {}", error);
+            eprintln!("ERROR: {error}");
         }
         eprintln!();
     }
-    let ref env = Environment::new();
+    let env = &Environment::new();
     // let std = get_std_ast();
     // std.eval(env).unwrap();
-    return program.eval(env);
+    program.eval(env)
 }
 
 pub fn test_vs_expectation(pairs: Vec<(&str, Result<Object, EvalError>)>) {
     for (input, expectation) in pairs.iter() {
-        let ref program_result = match test_eval(input.to_string()) {
+        let program_result = &(match test_eval(input.to_string()) {
             Ok(object) => Ok((*object).clone()),
             Err(error) => Err(error),
-        };
-        eprintln!("input: {:?}", input);
-        eprintln!("expectation: {:?}", expectation);
+        });
+        eprintln!("input: {input:?}");
+        eprintln!("expectation: {expectation:?}");
         assert_eq!(program_result, expectation);
     }
 }

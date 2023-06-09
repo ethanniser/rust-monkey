@@ -92,7 +92,7 @@ impl Environment {
                 if let Some(outer) = &self.outer {
                     return outer.borrow_mut().get(key);
                 } else {
-                    return None;
+                    None
                 }
             }
         }
@@ -119,7 +119,7 @@ pub fn get_scope(env: &Env, indent: usize) -> String {
                 output.push_str(&get_scope(&func.env, indent + 4));
             }
             _ => {
-                output.push_str(&format!("{}{} = {}\n", indentation, name, object));
+                output.push_str(&format!("{indentation}{name} = {object}\n"));
             }
         }
     }

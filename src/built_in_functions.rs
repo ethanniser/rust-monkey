@@ -21,8 +21,7 @@ impl Display for BuiltInFunctionError {
         let preface = format!("Error in built in function '{}': ", self.function);
         let error = match &self.error {
             BIFInnerError::WrongNumberOfArguments { expected, got } => format!(
-                "Wrong number of arguments. Expected {}, got {}",
-                expected, got
+                "Wrong number of arguments. Expected {expected}, got {got}"
             ),
             BIFInnerError::WrongArgumentType { expected, got } => {
                 format!(
@@ -33,11 +32,11 @@ impl Display for BuiltInFunctionError {
             }
         };
         let message = match self.message.clone() {
-            Some(message) => format!("\n{}", message),
+            Some(message) => format!("\n{message}"),
             None => "".to_string(),
         };
 
-        write!(f, "{}{}{}", preface, error, message)
+        write!(f, "{preface}{error}{message}")
     }
 }
 
@@ -69,7 +68,7 @@ impl Display for ObjectExpectation {
                     .map(|o| o.to_type())
                     .collect::<Vec<_>>()
                     .join(" | ");
-                write!(f, "{}", type_union)
+                write!(f, "{type_union}")
             }
         }
     }
@@ -242,7 +241,7 @@ fn puts(args: Vec<Rc<Object>>, env: &Env) -> Result<Rc<Object>, BuiltInFunctionE
 
     for arg in args {
         message.push_str(&arg.to_string());
-        message.push_str("\n");
+        message.push('\n');
     }
 
     let env_borrowed = env.borrow_mut();
@@ -252,7 +251,7 @@ fn puts(args: Vec<Rc<Object>>, env: &Env) -> Result<Rc<Object>, BuiltInFunctionE
         .expect("puts function called when environment has no output");
     let mut buffer = output.borrow_mut();
 
-    write!(buffer, "{}", message).expect("puts failed to write to output");
+    write!(buffer, "{message}").expect("puts failed to write to output");
 
     Ok(Rc::new(Object::None))
 }
